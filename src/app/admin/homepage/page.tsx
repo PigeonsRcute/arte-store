@@ -1,25 +1,46 @@
 import { createClient } from "@/lib/supabase/server";
 import HomepageEditor from "./HomepageEditor";
-import type { HomepageContent } from "@/lib/types";
+import type { HomepageContent, SaleEvent } from "@/lib/types";
+import type { PickerItem } from "@/components/admin/ProductPicker";
 
 export const metadata = { title: "Homepage Editor — Admin" };
 
 export default async function AdminHomepagePage() {
   const supabase = await createClient();
 
-  // Admin RLS policy returns all rows (active + inactive) for authenticated admins
-  const { data, error } = await supabase
-    .from("homepage_content")
-    .select("*")
-    .order("section");
+  const [sectionsResult, productsResult, eventsResult] = await Promise.all([
+    supabase
+      .from("homepage_content")
+      .select("*")
+      .order("section"),
+    supabase
+      .from("products")
+      .select("id, title, image_url, price_cents")
+      .eq("is_published", true)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("events")
+      .select("id, name, status, starts_at, banner_url")
+      .in("status", ["live", "scheduled"])
+      .order("starts_at", { ascending: true }),
+  ]);
 
-  if (error) {
+  if (sectionsResult.error) {
     return (
       <div className="rounded-xl bg-red-50 p-6 text-red-700 text-sm">
-        Failed to load homepage content: {error.message}
+        Failed to load homepage content: {sectionsResult.error.message}
       </div>
     );
   }
+
+  const products: PickerItem[] = (productsResult.data ?? []).map(p => ({
+    id: p.id,
+    name: p.title,
+    imageSrc: p.image_url ?? null,
+    priceCents: p.price_cents,
+  }));
+
+  const saleEvents = (eventsResult.data ?? []) as SaleEvent[];
 
   return (
     <div className="space-y-6">
@@ -29,7 +50,11 @@ export default async function AdminHomepagePage() {
           Edit each section&apos;s content and toggle visibility. Saves instantly — no redeploy needed.
         </p>
       </div>
-      <HomepageEditor sections={(data ?? []) as HomepageContent[]} />
+      <HomepageEditor
+        sections={(sectionsResult.data ?? []) as HomepageContent[]}
+        products={products}
+        saleEvents={saleEvents}
+      />
     </div>
   );
 }

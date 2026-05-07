@@ -14,6 +14,7 @@ type CartItemForCheckout = {
     title: string;
     slug: string;
     price_cents: number;
+    sale_price_cents?: number;
     image_url: string | null;
     image_urls: string[];
   };
@@ -106,9 +107,18 @@ export default function CheckoutClient({
                   <p className="font-black text-zinc-900">{item.product.title}</p>
                   <p className="text-sm text-zinc-500">Qty: {item.quantity}</p>
                 </div>
-                <span className="text-sm font-semibold text-zinc-800">
-                  {formatPrice(item.product.price_cents * item.quantity)}
-                </span>
+                {item.product.sale_price_cents ? (
+                  <span className="text-sm font-semibold text-red-600">
+                    {formatPrice(item.product.sale_price_cents * item.quantity)}{" "}
+                    <span className="text-xs font-normal text-zinc-400 line-through">
+                      {formatPrice(item.product.price_cents * item.quantity)}
+                    </span>
+                  </span>
+                ) : (
+                  <span className="text-sm font-semibold text-zinc-800">
+                    {formatPrice(item.product.price_cents * item.quantity)}
+                  </span>
+                )}
               </div>
             </div>
           );

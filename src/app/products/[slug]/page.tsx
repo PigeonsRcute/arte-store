@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getIsAdmin } from "@/lib/auth";
-import type { Product, Review } from "@/lib/types";
+import type { Product, Review, SalePrice } from "@/lib/types";
+import { buildSalePriceMap } from "@/lib/sale-price";
 import ProductGallery from "@/components/shop/ProductGallery";
 import ProductActions from "@/components/shop/ProductActions";
 import ReviewsSection from "@/components/shop/ReviewsSection";
@@ -19,6 +20,7 @@ async function getPageData(slug: string): Promise<{
   canReview: boolean;
   purchaseOrderId: string | undefined;
   userReview: Review | null;
+  salePrice: SalePrice | null;
 } | null> {
   const supabase = await createClient();
 
@@ -32,13 +34,14 @@ async function getPageData(slug: string): Promise<{
   const product = productResult.data as Product;
   const user = authResult.data?.user ?? null;
 
-  const [isAdmin, reviewsResult] = await Promise.all([
+  const [isAdmin, reviewsResult, salePriceMap] = await Promise.all([
     getIsAdmin(supabase, user?.id),
     supabase
       .from("reviews")
       .select("id, product_id, user_id, order_id, rating, comment, created_at, profiles(full_name)")
       .eq("product_id", product.id)
       .order("created_at", { ascending: false }),
+    buildSalePriceMap(supabase, [product]),
   ]);
 
   if (!product.is_published && !isAdmin) return null;
@@ -78,6 +81,7 @@ async function getPageData(slug: string): Promise<{
     canReview,
     purchaseOrderId,
     userReview,
+    salePrice: salePriceMap[product.id] ?? null,
   };
 }
 
@@ -105,7 +109,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
 
   if (!data) notFound();
 
-  const { product, reviews, isAdmin, userId, canReview, purchaseOrderId, userReview } = data;
+  const { product, reviews, isAdmin, userId, canReview, purchaseOrderId, userReview, salePrice } = data;
   const inStock = product.stock_quantity > 0;
   const avg = averageRating(reviews);
   const images = product.image_urls?.length > 0
@@ -178,10 +182,24 @@ export default async function ProductDetailPage({ params }: PageProps) {
           )}
 
           {/* Price */}
-          <div className="flex items-baseline gap-3">
-            <span className="text-4xl font-black text-red-600">
-              ${(product.price_cents / 100).toFixed(2)}
-            </span>
+          <div className="flex flex-wrap items-center gap-3">
+            {salePrice ? (
+              <>
+                <span className="rounded-full bg-red-500 px-3 py-1 text-xs font-black uppercase tracking-wide text-white">
+                  SALE
+                </span>
+                <span className="text-4xl font-black text-red-600">
+                  ${(salePrice.sale_cents / 100).toFixed(2)}
+                </span>
+                <span className="text-xl font-bold text-zinc-400 line-through">
+                  ${(product.price_cents / 100).toFixed(2)}
+                </span>
+              </>
+            ) : (
+              <span className="text-4xl font-black text-red-600">
+                ${(product.price_cents / 100).toFixed(2)}
+              </span>
+            )}
           </div>
 
           {/* Availability */}

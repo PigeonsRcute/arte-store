@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createPayPalOrder } from "@/lib/paypal";
+import { buildSalePriceMap } from "@/lib/sale-price";
 import {
   getActiveFreeShippingThreshold,
   getZoneForCountry,
@@ -49,8 +50,8 @@ export async function POST() {
 
   const productIds = items.map((i) => i.product.id);
 
-  // Fetch everything needed for shipping calculation in parallel
-  const [profileResult, zonesResult, productCategoriesResult, freeThreshold] =
+  // Fetch everything needed for shipping calculation and sale prices in parallel
+  const [profileResult, zonesResult, productCategoriesResult, freeThreshold, salePriceMap] =
     await Promise.all([
       supabase
         .from("profiles")
@@ -63,6 +64,7 @@ export async function POST() {
         .select("product_id, categories(slug)")
         .in("product_id", productIds),
       getActiveFreeShippingThreshold(supabase),
+      buildSalePriceMap(supabase, items.map((i) => i.product)),
     ]);
 
   const country = profileResult.data?.country ?? "";
@@ -79,7 +81,7 @@ export async function POST() {
   }
 
   const subtotalCents = items.reduce(
-    (sum, i) => sum + i.product.price_cents * i.quantity,
+    (sum, i) => sum + (salePriceMap[i.product.id]?.sale_cents ?? i.product.price_cents) * i.quantity,
     0,
   );
 
@@ -113,7 +115,7 @@ export async function POST() {
       items: items.map((i) => ({
         name: i.product.title,
         quantity: i.quantity,
-        unitPriceCents: i.product.price_cents,
+        unitPriceCents: salePriceMap[i.product.id]?.sale_cents ?? i.product.price_cents,
       })),
       returnUrl: `${baseUrl}/api/paypal/capture`,
       cancelUrl: `${baseUrl}/checkout`,

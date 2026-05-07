@@ -1,13 +1,15 @@
 import Link from "next/link";
 import NailCard from "@/components/nails/NailCard";
 import type { NailFeaturedProductsContent, NailProduct } from "@/lib/types";
+import type { SalePriceMap } from "@/lib/sale-price";
 
 interface Props {
   content: NailFeaturedProductsContent;
   products: NailProduct[];
+  salePriceMap?: SalePriceMap;
 }
 
-export default function NailsFeaturedProducts({ content, products }: Props) {
+export default function NailsFeaturedProducts({ content, products, salePriceMap }: Props) {
   const { headline } = content;
 
   return (
@@ -29,7 +31,7 @@ export default function NailsFeaturedProducts({ content, products }: Props) {
         {products.length > 0 ? (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {products.slice(0, 6).map(p => (
-              <NailCard key={p.id} product={p} />
+              <NailCard key={p.id} product={p} salePrice={salePriceMap?.[p.id]} />
             ))}
           </div>
         ) : (

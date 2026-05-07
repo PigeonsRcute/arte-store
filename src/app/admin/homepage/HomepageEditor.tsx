@@ -1,52 +1,45 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { saveSection, toggleSection } from "./actions";
-import type { HomepageContent } from "@/lib/types";
+import { saveSection } from "./actions";
+import type { HomepageContent, SaleEvent } from "@/lib/types";
+import ImageUploadField from "@/components/admin/ImageUploadField";
+import ProductPicker, { type PickerItem } from "@/components/admin/ProductPicker";
+import HomepageEventPicker from "@/components/admin/HomepageEventPicker";
 
 interface Props {
   sections: HomepageContent[];
+  products: PickerItem[];
+  saleEvents: SaleEvent[];
 }
 
 const TABS = [
-  { key: "announcements", label: "Announcements" },
-  { key: "hero",          label: "Hero"          },
-  { key: "promotions",    label: "Promotions"    },
-  { key: "featured_products", label: "Featured"  },
-  { key: "events",        label: "Events"        },
-  { key: "coming_soon",   label: "Coming Soon"   },
-  { key: "footer",        label: "Footer"        },
+  { key: "announcements",       label: "Announcements" },
+  { key: "hero",                label: "Hero"          },
+  { key: "promotions",          label: "Promotions"    },
+  { key: "featured_products",   label: "Featured"      },
+  { key: "events",              label: "Events"        },
+  { key: "coming_soon",         label: "Coming Soon"   },
+  { key: "footer",              label: "Footer"        },
 ] as const;
 
 type TabKey = typeof TABS[number]["key"];
 
 function Field({ label, name, value, onChange, multiline = false, hint }: {
-  label: string;
-  name: string;
-  value: string;
-  onChange: (v: string) => void;
-  multiline?: boolean;
-  hint?: string;
+  label: string; name: string; value: string;
+  onChange: (v: string) => void; multiline?: boolean; hint?: string;
 }) {
   return (
     <div className="space-y-1">
-      <label className="block text-xs font-bold uppercase tracking-wide text-zinc-500">
-        {label}
-      </label>
+      <label className="block text-xs font-bold uppercase tracking-wide text-zinc-500">{label}</label>
       {multiline ? (
         <textarea
-          name={name}
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          rows={5}
+          name={name} value={value} onChange={e => onChange(e.target.value)} rows={5}
           className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-mono text-zinc-800 focus:outline-none focus:ring-2 focus:ring-violet-400"
         />
       ) : (
         <input
-          type="text"
-          name={name}
-          value={value}
-          onChange={e => onChange(e.target.value)}
+          type="text" name={name} value={value} onChange={e => onChange(e.target.value)}
           className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 focus:outline-none focus:ring-2 focus:ring-violet-400"
         />
       )}
@@ -69,14 +62,21 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
   );
 }
 
+function SaveButton() {
+  return (
+    <button type="submit" className="rounded-full bg-violet-600 px-6 py-2.5 text-sm font-black text-white transition hover:bg-violet-500 active:scale-95">
+      Save changes
+    </button>
+  );
+}
+
 // ── Per-section form components ──────────────────────────────────────────────
 
 function AnnouncementsForm({ data, isActive, onSave }: { data: Record<string, unknown>; isActive: boolean; onSave: (d: Record<string, unknown>, a: boolean) => void }) {
-  const [active, setActive] = useState(isActive);
-  const [text, setText]     = useState(String(data.text ?? ""));
-  const [link, setLink]     = useState(String(data.link ?? ""));
-  const [linkLabel, setLinkLabel] = useState(String(data.link_label ?? ""));
-
+  const [active, setActive]           = useState(isActive);
+  const [text, setText]               = useState(String(data.text ?? ""));
+  const [link, setLink]               = useState(String(data.link ?? ""));
+  const [linkLabel, setLinkLabel]     = useState(String(data.link_label ?? ""));
   return (
     <form onSubmit={e => { e.preventDefault(); onSave({ text, link, link_label: linkLabel }, active); }} className="space-y-5">
       <Toggle checked={active} onChange={setActive} label="Section visible" />
@@ -89,13 +89,12 @@ function AnnouncementsForm({ data, isActive, onSave }: { data: Record<string, un
 }
 
 function HeroForm({ data, isActive, onSave }: { data: Record<string, unknown>; isActive: boolean; onSave: (d: Record<string, unknown>, a: boolean) => void }) {
-  const [active, setActive]         = useState(isActive);
-  const [headline, setHeadline]     = useState(String(data.headline ?? ""));
-  const [sub, setSub]               = useState(String(data.subheadline ?? ""));
-  const [ctaText, setCtaText]       = useState(String(data.cta_text ?? ""));
-  const [ctaLink, setCtaLink]       = useState(String(data.cta_link ?? ""));
-  const [bgImage, setBgImage]       = useState(String(data.bg_image_url ?? ""));
-
+  const [active, setActive]       = useState(isActive);
+  const [headline, setHeadline]   = useState(String(data.headline ?? ""));
+  const [sub, setSub]             = useState(String(data.subheadline ?? ""));
+  const [ctaText, setCtaText]     = useState(String(data.cta_text ?? ""));
+  const [ctaLink, setCtaLink]     = useState(String(data.cta_link ?? ""));
+  const [bgImage, setBgImage]     = useState(String(data.bg_image_url ?? ""));
   return (
     <form onSubmit={e => { e.preventDefault(); onSave({ headline, subheadline: sub, cta_text: ctaText, cta_link: ctaLink, bg_image_url: bgImage }, active); }} className="space-y-5">
       <Toggle checked={active} onChange={setActive} label="Section visible" />
@@ -103,111 +102,79 @@ function HeroForm({ data, isActive, onSave }: { data: Record<string, unknown>; i
       <Field label="Subheadline" name="subheadline" value={sub} onChange={setSub} />
       <Field label="CTA button text" name="cta_text" value={ctaText} onChange={setCtaText} />
       <Field label="CTA link" name="cta_link" value={ctaLink} onChange={setCtaLink} hint="e.g. /shop" />
-      <Field label="Background / artwork image URL" name="bg_image_url" value={bgImage} onChange={setBgImage} hint="Supabase Storage URL — leave blank to show placeholder" />
+      <ImageUploadField label="Background / artwork image" value={bgImage} onChange={setBgImage} hint="Leave blank to show placeholder" />
       <SaveButton />
     </form>
   );
 }
 
-function PromotionsForm({ data, isActive, onSave }: { data: Record<string, unknown>; isActive: boolean; onSave: (d: Record<string, unknown>, a: boolean) => void }) {
-  const [active, setActive]           = useState(isActive);
-  const [badge, setBadge]             = useState(String(data.badge_label ?? "SALE"));
-  const [blurb, setBlurb]             = useState(String(data.blurb ?? ""));
-  const [discount, setDiscount]       = useState(String(data.discount_text ?? ""));
-  const [ids, setIds]                 = useState((data.product_ids as string[] ?? []).join("\n"));
-
+function PromotionsForm({ data, isActive, onSave, products }: {
+  data: Record<string, unknown>; isActive: boolean;
+  onSave: (d: Record<string, unknown>, a: boolean) => void;
+  products: PickerItem[];
+}) {
+  const [active, setActive]         = useState(isActive);
+  const [badge, setBadge]           = useState(String(data.badge_label ?? "SALE"));
+  const [blurb, setBlurb]           = useState(String(data.blurb ?? ""));
+  const [discount, setDiscount]     = useState(String(data.discount_text ?? ""));
+  const [productIds, setProductIds] = useState<string[]>(
+    Array.isArray(data.product_ids) ? (data.product_ids as string[]) : []
+  );
   return (
-    <form onSubmit={e => { e.preventDefault(); onSave({ badge_label: badge, blurb, discount_text: discount, product_ids: ids.split("\n").map(s => s.trim()).filter(Boolean) }, active); }} className="space-y-5">
+    <form onSubmit={e => { e.preventDefault(); onSave({ badge_label: badge, blurb, discount_text: discount, product_ids: productIds }, active); }} className="space-y-5">
       <Toggle checked={active} onChange={setActive} label="Section visible" />
       <Field label="Badge label" name="badge_label" value={badge} onChange={setBadge} hint='e.g. SALE' />
       <Field label="Section blurb" name="blurb" value={blurb} onChange={setBlurb} />
       <Field label="Discount text" name="discount_text" value={discount} onChange={setDiscount} hint='e.g. Up to 30% off' />
-      <Field label="Product IDs (one per line, up to 4)" name="product_ids" value={ids} onChange={setIds} multiline hint="Paste product UUIDs from the Products page" />
+      <ProductPicker label="Products (up to 4)" items={products} selectedIds={productIds} onChange={setProductIds} max={4} />
       <SaveButton />
     </form>
   );
 }
 
-function FeaturedForm({ data, isActive, onSave }: { data: Record<string, unknown>; isActive: boolean; onSave: (d: Record<string, unknown>, a: boolean) => void }) {
-  const [active, setActive]   = useState(isActive);
-  const [headline, setHead]   = useState(String(data.headline ?? "New Releases"));
-  const [ids, setIds]         = useState((data.product_ids as string[] ?? []).join("\n"));
-
-  return (
-    <form onSubmit={e => { e.preventDefault(); onSave({ headline, product_ids: ids.split("\n").map(s => s.trim()).filter(Boolean) }, active); }} className="space-y-5">
-      <Toggle checked={active} onChange={setActive} label="Section visible" />
-      <Field label="Section headline" name="headline" value={headline} onChange={setHead} />
-      <Field label="Product IDs (one per line, up to 6)" name="product_ids" value={ids} onChange={setIds} multiline hint="Paste product UUIDs from the Products page. Leave blank to show placeholders." />
-      <SaveButton />
-    </form>
+function FeaturedForm({ data, isActive, onSave, products }: {
+  data: Record<string, unknown>; isActive: boolean;
+  onSave: (d: Record<string, unknown>, a: boolean) => void;
+  products: PickerItem[];
+}) {
+  const [active, setActive]         = useState(isActive);
+  const [headline, setHead]         = useState(String(data.headline ?? "New Releases"));
+  const [productIds, setProductIds] = useState<string[]>(
+    Array.isArray(data.product_ids) ? (data.product_ids as string[]) : []
   );
-}
-
-function EventsForm({ data, isActive, onSave }: { data: Record<string, unknown>; isActive: boolean; onSave: (d: Record<string, unknown>, a: boolean) => void }) {
-  const [active, setActive]   = useState(isActive);
-  const [headline, setHead]   = useState(String(data.headline ?? "Upcoming Events"));
-  const [itemsJson, setItems] = useState(() => JSON.stringify(data.items ?? [], null, 2));
-  const [jsonError, setJsonError] = useState("");
-
-  const handleItemsChange = (v: string) => {
-    setItems(v);
-    try { JSON.parse(v); setJsonError(""); } catch { setJsonError("Invalid JSON"); }
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const items = JSON.parse(itemsJson);
-      onSave({ headline, items }, active);
-    } catch { setJsonError("Fix JSON before saving"); }
-  };
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={e => { e.preventDefault(); onSave({ headline, product_ids: productIds }, active); }} className="space-y-5">
       <Toggle checked={active} onChange={setActive} label="Section visible" />
       <Field label="Section headline" name="headline" value={headline} onChange={setHead} />
-      <div className="space-y-1">
-        <label className="block text-xs font-bold uppercase tracking-wide text-zinc-500">Events (JSON array)</label>
-        <textarea
-          value={itemsJson}
-          onChange={e => handleItemsChange(e.target.value)}
-          rows={12}
-          className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-mono text-zinc-800 focus:outline-none focus:ring-2 focus:ring-violet-400"
-        />
-        {jsonError && <p className="text-xs text-red-500">{jsonError}</p>}
-        <p className="text-[11px] text-zinc-400">
-          Each item: {"{ id, name, date, location, link?, image_url? }"}
-        </p>
-      </div>
+      <ProductPicker label="Products (up to 6)" items={products} selectedIds={productIds} onChange={setProductIds} max={6} />
       <SaveButton />
     </form>
   );
 }
 
 function ComingSoonForm({ data, isActive, onSave }: { data: Record<string, unknown>; isActive: boolean; onSave: (d: Record<string, unknown>, a: boolean) => void }) {
-  const [active, setActive]     = useState(isActive);
-  const [title, setTitle]       = useState(String(data.title ?? ""));
-  const [date, setDate]         = useState(String(data.expected_date ?? ""));
-  const [image, setImage]       = useState(String(data.teaser_image_url ?? ""));
-
+  const [active, setActive] = useState(isActive);
+  const [title, setTitle]   = useState(String(data.title ?? ""));
+  const [date, setDate]     = useState(String(data.expected_date ?? ""));
+  const [image, setImage]   = useState(String(data.teaser_image_url ?? ""));
   return (
     <form onSubmit={e => { e.preventDefault(); onSave({ title, expected_date: date, teaser_image_url: image }, active); }} className="space-y-5">
       <Toggle checked={active} onChange={setActive} label="Section visible" />
       <Field label="Title" name="title" value={title} onChange={setTitle} />
       <Field label="Expected date" name="expected_date" value={date} onChange={setDate} hint='e.g. Summer 2026' />
-      <Field label="Teaser image URL" name="teaser_image_url" value={image} onChange={setImage} hint="Supabase Storage URL — leave blank for animated placeholder" />
+      <ImageUploadField label="Teaser image" value={image} onChange={setImage} hint="Leave blank for animated placeholder" />
       <SaveButton />
     </form>
   );
 }
 
 function FooterForm({ data, isActive, onSave }: { data: Record<string, unknown>; isActive: boolean; onSave: (d: Record<string, unknown>, a: boolean) => void }) {
-  const [active, setActive]         = useState(isActive);
-  const [tagline, setTagline]       = useState(String(data.tagline ?? ""));
-  const [shopLink, setShopLink]     = useState(String(data.shop_link ?? "/shop"));
-  const [contactLink, setContact]   = useState(String(data.contact_link ?? "/contact"));
-  const [socialJson, setSocial]     = useState(() => JSON.stringify(data.social_links ?? [], null, 2));
-  const [jsonError, setJsonError]   = useState("");
+  const [active, setActive]       = useState(isActive);
+  const [tagline, setTagline]     = useState(String(data.tagline ?? ""));
+  const [shopLink, setShopLink]   = useState(String(data.shop_link ?? "/shop"));
+  const [contactLink, setContact] = useState(String(data.contact_link ?? "/contact"));
+  const [socialJson, setSocial]   = useState(() => JSON.stringify(data.social_links ?? [], null, 2));
+  const [jsonError, setJsonError] = useState("");
 
   const handleSocialChange = (v: string) => {
     setSocial(v);
@@ -225,15 +192,13 @@ function FooterForm({ data, isActive, onSave }: { data: Record<string, unknown>;
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <Toggle checked={active} onChange={setActive} label="Section visible" />
-      <Field label="Tagline (shown below heading)" name="tagline" value={tagline} onChange={setTagline} />
+      <Field label="Tagline" name="tagline" value={tagline} onChange={setTagline} />
       <Field label="Shop link" name="shop_link" value={shopLink} onChange={setShopLink} />
       <Field label="Contact link" name="contact_link" value={contactLink} onChange={setContact} />
       <div className="space-y-1">
         <label className="block text-xs font-bold uppercase tracking-wide text-zinc-500">Social links (JSON array)</label>
         <textarea
-          value={socialJson}
-          onChange={e => handleSocialChange(e.target.value)}
-          rows={6}
+          value={socialJson} onChange={e => handleSocialChange(e.target.value)} rows={6}
           className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-mono text-zinc-800 focus:outline-none focus:ring-2 focus:ring-violet-400"
         />
         {jsonError && <p className="text-xs text-red-500">{jsonError}</p>}
@@ -244,28 +209,16 @@ function FooterForm({ data, isActive, onSave }: { data: Record<string, unknown>;
   );
 }
 
-function SaveButton() {
-  return (
-    <button
-      type="submit"
-      className="rounded-full bg-violet-600 px-6 py-2.5 text-sm font-black text-white transition hover:bg-violet-500 active:scale-95"
-    >
-      Save changes
-    </button>
-  );
-}
-
 // ── Main editor ──────────────────────────────────────────────────────────────
-export default function HomepageEditor({ sections }: Props) {
-  const [activeTab, setActiveTab] = useState<TabKey>("hero");
+export default function HomepageEditor({ sections, products, saleEvents }: Props) {
+  const [activeTab, setActiveTab]   = useState<TabKey>("hero");
   const [isPending, startTransition] = useTransition();
-  const [saved, setSaved] = useState<string | null>(null);
+  const [saved, setSaved]           = useState<string | null>(null);
 
   const byKey = Object.fromEntries(sections.map(s => [s.section, s]));
 
-  const getSection = (key: string): HomepageContent => byKey[key] ?? {
-    id: "", section: key, content: {}, is_active: false, updated_at: "",
-  };
+  const getSection = (key: string): HomepageContent =>
+    byKey[key] ?? { id: "", section: key, content: {}, is_active: false, updated_at: "" };
 
   const handleSave = (key: string) => (data: Record<string, unknown>, isActive: boolean) => {
     startTransition(async () => {
@@ -275,58 +228,49 @@ export default function HomepageEditor({ sections }: Props) {
     });
   };
 
-  const currentSection = getSection(activeTab);
+  const s = getSection(activeTab);
 
   const formMap: Record<TabKey, React.ReactNode> = {
-    announcements:    <AnnouncementsForm data={currentSection.content} isActive={currentSection.is_active} onSave={handleSave("announcements")} />,
-    hero:             <HeroForm          data={currentSection.content} isActive={currentSection.is_active} onSave={handleSave("hero")} />,
-    promotions:       <PromotionsForm    data={currentSection.content} isActive={currentSection.is_active} onSave={handleSave("promotions")} />,
-    featured_products:<FeaturedForm      data={currentSection.content} isActive={currentSection.is_active} onSave={handleSave("featured_products")} />,
-    events:           <EventsForm        data={currentSection.content} isActive={currentSection.is_active} onSave={handleSave("events")} />,
-    coming_soon:      <ComingSoonForm    data={currentSection.content} isActive={currentSection.is_active} onSave={handleSave("coming_soon")} />,
-    footer:           <FooterForm        data={currentSection.content} isActive={currentSection.is_active} onSave={handleSave("footer")} />,
+    announcements:    <AnnouncementsForm data={s.content} isActive={s.is_active} onSave={handleSave("announcements")} />,
+    hero:             <HeroForm          data={s.content} isActive={s.is_active} onSave={handleSave("hero")} />,
+    promotions:       <PromotionsForm    data={s.content} isActive={s.is_active} onSave={handleSave("promotions")}    products={products} />,
+    featured_products:<FeaturedForm      data={s.content} isActive={s.is_active} onSave={handleSave("featured_products")} products={products} />,
+    events:           <HomepageEventPicker events={saleEvents} data={s.content} isActive={s.is_active} onSave={handleSave("events")} />,
+    coming_soon:      <ComingSoonForm    data={s.content} isActive={s.is_active} onSave={handleSave("coming_soon")} />,
+    footer:           <FooterForm        data={s.content} isActive={s.is_active} onSave={handleSave("footer")} />,
   };
 
   return (
     <div className="space-y-6">
-      {/* Tabs */}
       <div className="flex flex-wrap gap-2">
         {TABS.map(tab => {
-          const s = getSection(tab.key);
+          const sec = getSection(tab.key);
           const isActive = activeTab === tab.key;
           return (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={`relative rounded-full px-4 py-2 text-sm font-bold transition ${
-                isActive
-                  ? "bg-violet-600 text-white shadow"
-                  : "bg-white text-zinc-600 hover:bg-zinc-100 ring-1 ring-zinc-200"
+                isActive ? "bg-violet-600 text-white shadow" : "bg-white text-zinc-600 hover:bg-zinc-100 ring-1 ring-zinc-200"
               }`}
             >
               {tab.label}
-              {/* Active/inactive dot */}
-              <span className={`absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-zinc-50 ${s.is_active ? "bg-emerald-400" : "bg-zinc-300"}`} />
+              <span className={`absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-zinc-50 ${sec.is_active ? "bg-emerald-400" : "bg-zinc-300"}`} />
             </button>
           );
         })}
       </div>
 
-      {/* Form panel */}
       <div className="rounded-2xl bg-zinc-50 p-6 ring-1 ring-zinc-200">
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-lg font-black text-zinc-900">
             {TABS.find(t => t.key === activeTab)?.label}
           </h2>
           {saved === activeTab && (
-            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">
-              ✓ Saved
-            </span>
+            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-700">✓ Saved</span>
           )}
           {isPending && (
-            <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-bold text-violet-700">
-              Saving…
-            </span>
+            <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-bold text-violet-700">Saving…</span>
           )}
         </div>
         {formMap[activeTab]}

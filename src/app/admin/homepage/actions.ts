@@ -14,6 +14,8 @@ export async function saveSection(section: string, content: Record<string, unkno
 
   revalidatePath("/");
   revalidatePath("/admin/homepage");
+  revalidatePath("/gallery");
+  revalidatePath("/shop");
 }
 
 export async function toggleSection(section: string, isActive: boolean) {
@@ -28,4 +30,6 @@ export async function toggleSection(section: string, isActive: boolean) {
 
   revalidatePath("/");
   revalidatePath("/admin/homepage");
+  revalidatePath("/gallery");
+  revalidatePath("/shop");
 }

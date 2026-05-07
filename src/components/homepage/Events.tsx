@@ -2,48 +2,49 @@
 
 import { motion } from "framer-motion";
 import { AnimatedFeatureCard } from "@/components/ui/AnimatedFeatureCard";
-import type { EventsContent, EventItem } from "@/lib/types";
+import type { SaleEvent } from "@/lib/types";
 import { useHoverColor } from "@/lib/use-hover-color";
 
 interface Props {
-  content: EventsContent;
+  headline: string;
+  events: SaleEvent[];
   variant?: "nails";
 }
 
-const PLACEHOLDER_EVENTS: EventItem[] = [
-  { id: "e1", name: "Open Studio Day",   date: "Coming Soon", location: "The Studio"  },
-  { id: "e2", name: "Art Market Pop-Up", date: "TBA",         location: "City Centre" },
+type EventDisplay = Pick<SaleEvent, "id" | "name" | "starts_at" | "banner_url" | "discount_type" | "discount_value">;
+
+const PLACEHOLDER_EVENTS: EventDisplay[] = [
+  { id: "e1", name: "Open Studio Day",   starts_at: null, banner_url: null, discount_type: "percent", discount_value: 0 },
+  { id: "e2", name: "Art Market Pop-Up", starts_at: null, banner_url: null, discount_type: "percent", discount_value: 0 },
 ];
 
-// AnimatedFeatureCard only takes "orange" | "purple" | "blue".
-// Events use a purple/orange alternating palette for visual contrast with FeaturedProducts.
 const EVENT_COLORS = ["purple", "orange", "blue", "purple"] as const;
 
-function EventCard({ event, size, colorIndex }: { event: EventItem; size: "large" | "small"; colorIndex: number }) {
-  const card = (
-    <AnimatedFeatureCard
-      index={event.date}
-      tag={event.location}
-      title={event.name}
-      imageSrc={event.image_url ?? "/placeholder-art.svg"}
-      color={EVENT_COLORS[colorIndex % 4]}
-      className={`w-full max-w-none ${size === "large" ? "h-[440px]" : "h-[440px]"}`}
-    />
-  );
-
-  if (event.link) {
-    return (
-      <a href={event.link} target="_blank" rel="noopener noreferrer" className="block">
-        {card}
-      </a>
-    );
-  }
-  return <div>{card}</div>;
+function formatDate(iso: string | null): string {
+  if (!iso) return "Coming Soon";
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
-export default function Events({ content, variant }: Props) {
-  const { headline, items } = content;
-  const events = Array.isArray(items) && items.length > 0 ? items : PLACEHOLDER_EVENTS;
+function discountTag(type: string, value: number): string {
+  if (value === 0) return "Event";
+  return type === "percent" ? `${value}% off` : `€${value} off`;
+}
+
+function EventCard({ event, colorIndex }: { event: EventDisplay; colorIndex: number }) {
+  return (
+    <AnimatedFeatureCard
+      index={formatDate(event.starts_at)}
+      tag={discountTag(event.discount_type, event.discount_value)}
+      title={event.name}
+      imageSrc={event.banner_url ?? "/placeholder-art.svg"}
+      color={EVENT_COLORS[colorIndex % 4]}
+      className="w-full max-w-none h-[440px]"
+    />
+  );
+}
+
+export default function Events({ headline, events, variant }: Props) {
+  const display = events.length > 0 ? events : PLACEHOLDER_EVENTS;
   const { onClick: onHeadlineHover } = useHoverColor();
   const eyebrowClass = variant === "nails"
     ? "mb-2 text-xs font-black uppercase tracking-[0.3em] text-violet-400"
@@ -55,9 +56,7 @@ export default function Events({ content, variant }: Props) {
 
         {/* Header */}
         <div className="mb-12 px-2">
-          <p className={eyebrowClass}>
-            Mark your calendar
-          </p>
+          <p className={eyebrowClass}>Mark your calendar</p>
           <h2
             className="text-4xl font-black tracking-tight text-white md:text-5xl"
             onClick={onHeadlineHover}
@@ -68,29 +67,29 @@ export default function Events({ content, variant }: Props) {
 
         {/* Row 1: large (8) + small (4) */}
         <div className="mb-4 grid grid-cols-12 gap-4">
-          {events[0] && (
+          {display[0] && (
             <motion.div whileHover={{ scale: 0.98 }} className="col-span-12 md:col-span-8">
-              <EventCard event={events[0]} size="large" colorIndex={0} />
+              <EventCard event={display[0]} colorIndex={0} />
             </motion.div>
           )}
-          {events[1] && (
+          {display[1] && (
             <motion.div whileHover={{ scale: 0.98 }} className="col-span-12 md:col-span-4">
-              <EventCard event={events[1]} size="small" colorIndex={1} />
+              <EventCard event={display[1]} colorIndex={1} />
             </motion.div>
           )}
         </div>
 
         {/* Row 2: small (4) + large (8) — only if more events */}
-        {events.length > 2 && (
+        {display.length > 2 && (
           <div className="grid grid-cols-12 gap-4">
-            {events[2] && (
+            {display[2] && (
               <motion.div whileHover={{ scale: 0.98 }} className="col-span-12 md:col-span-4">
-                <EventCard event={events[2]} size="small" colorIndex={2} />
+                <EventCard event={display[2]} colorIndex={2} />
               </motion.div>
             )}
-            {events[3] && (
+            {display[3] && (
               <motion.div whileHover={{ scale: 0.98 }} className="col-span-12 md:col-span-8">
-                <EventCard event={events[3]} size="large" colorIndex={3} />
+                <EventCard event={display[3]} colorIndex={3} />
               </motion.div>
             )}
           </div>

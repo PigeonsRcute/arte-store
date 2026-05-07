@@ -17,6 +17,7 @@ export default function SignUpForm() {
   const [password, setPassword] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
+  const [isDuplicateEmail, setIsDuplicateEmail] = useState(false);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
 
@@ -36,6 +37,7 @@ export default function SignUpForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setServerError(null);
+    setIsDuplicateEmail(false);
 
     const errs = validate();
     if (Object.keys(errs).length > 0) {
@@ -54,7 +56,12 @@ export default function SignUpForm() {
       if (error) throw error;
       setDone(true);
     } catch (err) {
-      setServerError(err instanceof Error ? err.message : "Sign up failed.");
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.toLowerCase().includes("already registered")) {
+        setIsDuplicateEmail(true);
+      } else {
+        setServerError(msg || "Sign up failed.");
+      }
     } finally {
       setLoading(false);
     }
@@ -155,6 +162,14 @@ export default function SignUpForm() {
         </div>
 
         {/* Server error */}
+        {isDuplicateEmail && (
+          <p className="rounded-xl border-2 border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+            An account with this email already exists.{" "}
+            <Link href="/login" className="underline hover:text-red-800">
+              Sign in instead →
+            </Link>
+          </p>
+        )}
         {serverError && (
           <p className="rounded-xl border-2 border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
             {serverError}

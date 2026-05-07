@@ -207,18 +207,9 @@ export interface FeaturedProductsContent {
   product_ids: string[];
 }
 
-export interface EventItem {
-  id: string;
-  name: string;
-  date: string;
-  location: string;
-  link?: string;
-  image_url?: string;
-}
-
 export interface EventsContent {
   headline: string;
-  items: EventItem[];
+  selected_event_ids: string[];
 }
 
 export interface ComingSoonContent {
@@ -272,7 +263,7 @@ export interface NailFeaturedProductsContent {
 
 export interface NailEventsContent {
   headline: string;
-  items: EventItem[];
+  selected_event_ids: string[];
 }
 
 export interface NailComingSoonContent {

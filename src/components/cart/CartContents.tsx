@@ -5,11 +5,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { updateCartQuantity, removeFromCart } from "@/lib/cart";
-import type { CartItemWithProduct } from "@/lib/types";
+import type { CartItemWithProduct, SalePrice } from "@/lib/types";
 
 type CartContentsProps = {
   initialItems: CartItemWithProduct[];
   freeShippingThresholdCents: number;
+  salePriceMap: Record<string, SalePrice>;
 };
 
 function formatEur(cents: number) {
@@ -19,15 +20,18 @@ function formatEur(cents: number) {
 export default function CartContents({
   initialItems,
   freeShippingThresholdCents,
+  salePriceMap,
 }: CartContentsProps) {
   const supabase = createClient();
   const [items, setItems] = useState<CartItemWithProduct[]>(initialItems);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const subtotalCents = items.reduce(
-    (sum, item) => sum + (item.products?.price_cents ?? 0) * item.quantity,
-    0,
-  );
+  const subtotalCents = items.reduce((sum, item) => {
+    const p = item.products;
+    if (!p) return sum;
+    const effectiveCents = salePriceMap[p.id]?.sale_cents ?? p.price_cents;
+    return sum + effectiveCents * item.quantity;
+  }, 0);
 
   const total = subtotalCents;
 
@@ -99,7 +103,9 @@ export default function CartContents({
           const product = item.products;
           if (!product) return null;
           const heroImage = product.image_urls?.[0] ?? product.image_url;
-          const subtotal = product.price_cents * item.quantity;
+          const salePrice = salePriceMap[product.id];
+          const effectiveCents = salePrice?.sale_cents ?? product.price_cents;
+          const subtotal = effectiveCents * item.quantity;
           const isBusy = busyId === item.id;
 
           return (
@@ -138,9 +144,19 @@ export default function CartContents({
                     {product.category}
                   </span>
                 )}
-                <span className="text-sm font-bold text-pink-700">
-                  ${(product.price_cents / 100).toFixed(2)} each
-                </span>
+                {salePrice ? (
+                  <span className="text-sm font-bold text-red-600">
+                    ${(salePrice.sale_cents / 100).toFixed(2)}{" "}
+                    <span className="text-xs font-normal text-zinc-400 line-through">
+                      ${(product.price_cents / 100).toFixed(2)}
+                    </span>{" "}
+                    each
+                  </span>
+                ) : (
+                  <span className="text-sm font-bold text-pink-700">
+                    ${(product.price_cents / 100).toFixed(2)} each
+                  </span>
+                )}
               </div>
 
               <div className="flex flex-col items-end justify-between gap-2">
@@ -197,7 +213,7 @@ export default function CartContents({
                 <span className="text-zinc-400"> ×{item.quantity}</span>
               </span>
               <span className="font-semibold text-zinc-800">
-                ${(((item.products?.price_cents ?? 0) * item.quantity) / 100).toFixed(2)}
+                ${(((salePriceMap[item.products?.id ?? ""]?.sale_cents ?? item.products?.price_cents ?? 0) * item.quantity) / 100).toFixed(2)}
               </span>
             </div>
           ))}

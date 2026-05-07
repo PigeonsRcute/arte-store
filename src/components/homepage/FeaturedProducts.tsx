@@ -65,7 +65,7 @@ export default function FeaturedProducts({ content, products }: Props) {
           {display.slice(0, 6).map((product, i) => (
             <Link
               key={product.id}
-              href={`/${product.slug}`}
+              href={`/products/${product.slug}`}
               className="w-full max-w-sm"
             >
               <AnimatedFeatureCard

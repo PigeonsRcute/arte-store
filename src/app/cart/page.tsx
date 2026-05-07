@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import type { CartItemWithProduct } from "@/lib/types";
+import type { CartItemWithProduct, Product } from "@/lib/types";
+import { buildSalePriceMap, type SalePriceMap } from "@/lib/sale-price";
 import CartContents from "@/components/cart/CartContents";
 import { getActiveFreeShippingThreshold } from "@/lib/shipping";
 
@@ -8,6 +9,7 @@ async function getCartData(): Promise<{
   items: CartItemWithProduct[];
   isSignedIn: boolean;
   freeShippingThresholdCents: number;
+  salePriceMap: SalePriceMap;
 }> {
   try {
     const supabase = await createClient();
@@ -15,7 +17,7 @@ async function getCartData(): Promise<{
     const user = authData?.user ?? null;
 
     if (!user) {
-      return { items: [], isSignedIn: false, freeShippingThresholdCents: 0 };
+      return { items: [], isSignedIn: false, freeShippingThresholdCents: 0, salePriceMap: {} };
     }
 
     const [cartResult, threshold] = await Promise.all([
@@ -27,18 +29,27 @@ async function getCartData(): Promise<{
       getActiveFreeShippingThreshold(supabase),
     ]);
 
+    const items = (cartResult.data ?? []) as CartItemWithProduct[];
+    const products = items
+      .map((item) => item.products)
+      .filter((p): p is Product => p !== null);
+    const salePriceMap = products.length > 0
+      ? await buildSalePriceMap(supabase, products)
+      : {};
+
     return {
-      items: (cartResult.data ?? []) as CartItemWithProduct[],
+      items,
       isSignedIn: true,
       freeShippingThresholdCents: threshold,
+      salePriceMap,
     };
   } catch {
-    return { items: [], isSignedIn: false, freeShippingThresholdCents: 0 };
+    return { items: [], isSignedIn: false, freeShippingThresholdCents: 0, salePriceMap: {} };
   }
 }
 
 export default async function CartPage() {
-  const { items, isSignedIn, freeShippingThresholdCents } = await getCartData();
+  const { items, isSignedIn, freeShippingThresholdCents, salePriceMap } = await getCartData();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-white to-pink-50 px-4 py-8 sm:px-8 lg:px-12">
@@ -82,6 +93,7 @@ export default async function CartPage() {
           <CartContents
             initialItems={items}
             freeShippingThresholdCents={freeShippingThresholdCents}
+            salePriceMap={salePriceMap}
           />
         )}
       </div>

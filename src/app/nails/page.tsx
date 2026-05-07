@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { buildSalePriceMap, type SalePriceMap } from "@/lib/sale-price";
 import NailsHero from "@/components/nails/NailsHero";
 import AnnouncementsBar from "@/components/homepage/AnnouncementsBar";
 import Events from "@/components/homepage/Events";
@@ -12,10 +13,10 @@ import type {
   NailHeroContent,
   NailPromotionsContent,
   NailFeaturedProductsContent,
-  NailEventsContent,
   NailComingSoonContent,
   NailGeneralAnnouncementsContent,
   NailProduct,
+  SaleEvent,
 } from "@/lib/types";
 
 const HOW_IT_WORKS = [
@@ -106,11 +107,38 @@ export default async function NailsHomePage() {
     .map((id: string) => productMap[id])
     .filter(Boolean);
 
-  const announcementsContent       = get<NailAnnouncementsBarContent>("announcements_bar");
-  const heroContent                = get<NailHeroContent>("hero");
-  const eventsContent              = get<NailEventsContent>("events");
-  const comingSoonContent          = get<NailComingSoonContent>("coming_soon");
+  // Build sale price map for all displayed nail products
+  const allDisplayedNailProducts = [...featuredProducts, ...promotionsProducts]
+    .filter((p, i, arr) => arr.findIndex((x) => x.id === p.id) === i);
+  const nailSalePriceMap: SalePriceMap = allDisplayedNailProducts.length > 0
+    ? await buildSalePriceMap(supabase, allDisplayedNailProducts)
+    : {};
+
+  const announcementsContent        = get<NailAnnouncementsBarContent>("announcements_bar");
+  const heroContent                 = get<NailHeroContent>("hero");
+  const comingSoonContent           = get<NailComingSoonContent>("coming_soon");
   const generalAnnouncementsContent = get<NailGeneralAnnouncementsContent>("general_announcements");
+
+  // Events: read selected IDs from nail_homepage_content, fetch live/scheduled events
+  const eventsRow      = bySection["events"];
+  const eventsActive   = eventsRow?.is_active ?? false;
+  const eventsHeadline = String((eventsRow?.content as { headline?: string })?.headline ?? "Upcoming Events");
+
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const rawEventIds = eventsActive && Array.isArray((eventsRow?.content as { selected_event_ids?: unknown[] })?.selected_event_ids)
+    ? ((eventsRow.content as { selected_event_ids: unknown[] }).selected_event_ids as string[]).filter((id): id is string => typeof id === "string" && UUID_RE.test(id))
+    : [];
+
+  let featuredEvents: SaleEvent[] = [];
+  if (rawEventIds.length > 0) {
+    const { data: eventsData } = await supabase
+      .from("events")
+      .select("id, name, description, banner_url, discount_type, discount_value, status, starts_at, ends_at, free_shipping_threshold_cents, created_at, updated_at")
+      .in("id", rawEventIds)
+      .in("status", ["live", "scheduled"])
+      .throwOnError();
+    featuredEvents = (eventsData ?? []) as SaleEvent[];
+  }
 
   return (
     <div className="flex flex-col gap-0">
@@ -138,6 +166,7 @@ export default async function NailsHomePage() {
           <NailsFeaturedProducts
             content={featuredContent}
             products={featuredProducts}
+            salePriceMap={nailSalePriceMap}
           />
         ) : (
           /* Hardcoded placeholder while CMS section is inactive */
@@ -188,8 +217,8 @@ export default async function NailsHomePage() {
         </section>
 
         {/* Events */}
-        {eventsContent && (
-          <Events content={eventsContent} variant="nails" />
+        {eventsActive && (
+          <Events headline={eventsHeadline} events={featuredEvents} variant="nails" />
         )}
 
         {/* Coming Soon */}

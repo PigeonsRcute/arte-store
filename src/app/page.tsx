@@ -4,11 +4,11 @@ import type {
   HeroContent,
   PromotionsContent,
   FeaturedProductsContent,
-  EventsContent,
   ComingSoonContent,
   FooterContent,
   Product,
   Category,
+  SaleEvent,
 } from "@/lib/types";
 
 import AnnouncementsBar  from "@/components/homepage/AnnouncementsBar";
@@ -19,6 +19,8 @@ import Events            from "@/components/homepage/Events";
 import ComingSoon        from "@/components/homepage/ComingSoon";
 import Footer            from "@/components/homepage/Footer";
 import CategoryPreview   from "@/components/homepage/CategoryPreview";
+
+export const dynamic = "force-dynamic";
 
 // Default content used when the DB row is missing (graceful degradation)
 const DEFAULTS = {
@@ -35,11 +37,6 @@ const DEFAULTS = {
     product_ids: [],
   } satisfies FeaturedProductsContent,
 
-  events: {
-    headline: "Upcoming Events",
-    items: [],
-  } satisfies EventsContent,
-
   footer: {
     tagline: "Art that hits like artillery.",
     shop_link: "/shop",
@@ -54,7 +51,8 @@ export default async function Home() {
   // Fetch all active homepage_content rows in one query
   const { data: sections } = await supabase
     .from("homepage_content")
-    .select("section, content, is_active");
+    .select("section, content, is_active")
+    .throwOnError();
 
   type Row = { section: string; content: Record<string, unknown>; is_active: boolean };
   const bySection = Object.fromEntries(
@@ -68,7 +66,8 @@ export default async function Home() {
   const { data: categoriesData } = await supabase
     .from("categories")
     .select("*")
-    .order("sort_order", { ascending: true });
+    .order("sort_order", { ascending: true })
+    .throwOnError();
   const categories: Category[] = categoriesData ?? [];
 
   // Collect product IDs needed by promotions + featured sections
@@ -76,10 +75,12 @@ export default async function Home() {
   const featuredContent   = get<FeaturedProductsContent>("featured_products")
                             ?? DEFAULTS.featured_products;
 
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
   const productIds = [
     ...(promotionsContent?.product_ids ?? []),
     ...(featuredContent.product_ids   ?? []),
-  ].filter(Boolean);
+  ].filter((id): id is string => typeof id === "string" && UUID_RE.test(id));
 
   let products: Product[] = [];
   if (productIds.length > 0) {
@@ -87,15 +88,33 @@ export default async function Home() {
       .from("products")
       .select("id, slug, title, category, image_url, image_urls, price_cents")
       .in("id", productIds)
-      .eq("is_published", true);
+      .eq("is_published", true)
+      .throwOnError();
     products = (data ?? []) as Product[];
   }
 
   const announcementsContent = get<AnnouncementsContent>("announcements");
   const heroContent          = get<HeroContent>("hero") ?? DEFAULTS.hero;
-  const eventsContent        = get<EventsContent>("events")              ?? DEFAULTS.events;
   const comingSoonContent    = get<ComingSoonContent>("coming_soon");
   const footerContent        = get<FooterContent>("footer")              ?? DEFAULTS.footer;
+
+  // Events: read selected IDs from homepage_content, then fetch live/scheduled events from events table
+  const eventsRow        = bySection["events"];
+  const eventsHeadline   = String((eventsRow?.content as { headline?: string })?.headline ?? "Upcoming Events");
+  const rawEventIds      = Array.isArray((eventsRow?.content as { selected_event_ids?: unknown[] })?.selected_event_ids)
+    ? ((eventsRow.content as { selected_event_ids: unknown[] }).selected_event_ids as string[]).filter((id): id is string => typeof id === "string" && UUID_RE.test(id))
+    : [];
+
+  let featuredEvents: SaleEvent[] = [];
+  if (rawEventIds.length > 0) {
+    const { data: eventsData } = await supabase
+      .from("events")
+      .select("id, name, description, banner_url, discount_type, discount_value, status, starts_at, ends_at, free_shipping_threshold_cents, created_at, updated_at")
+      .in("id", rawEventIds)
+      .in("status", ["live", "scheduled"])
+      .throwOnError();
+    featuredEvents = (eventsData ?? []) as SaleEvent[];
+  }
 
   const promoProducts  = promotionsContent
     ? products.filter(p => promotionsContent.product_ids.includes(p.id))
@@ -127,7 +146,7 @@ export default async function Home() {
         <CategoryPreview categories={categories} />
       )}
 
-      <Events content={eventsContent} />
+      <Events headline={eventsHeadline} events={featuredEvents} />
 
       {comingSoonContent && (
         <ComingSoon content={comingSoonContent} />

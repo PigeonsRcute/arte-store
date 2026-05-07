@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { buildSalePriceMap } from "@/lib/sale-price";
 import CheckoutClient from "@/components/checkout/CheckoutClient";
 import {
   getActiveFreeShippingThreshold,
@@ -41,15 +42,10 @@ async function getCheckoutData() {
   const profile = profileResult.data;
   const country = profile?.country ?? "";
 
-  const subtotalCents = items.reduce(
-    (sum, i) => sum + i.product.price_cents * i.quantity,
-    0,
-  );
-
   // Compute initial shipping estimate server-side
   const productIds = items.map((i) => i.product.id);
 
-  const [zonesResult, productCategoriesResult, freeThreshold] =
+  const [zonesResult, productCategoriesResult, freeThreshold, salePriceMap] =
     await Promise.all([
       supabase.from("shipping_zones").select("*"),
       supabase
@@ -57,7 +53,20 @@ async function getCheckoutData() {
         .select("product_id, categories(slug)")
         .in("product_id", productIds),
       getActiveFreeShippingThreshold(supabase),
+      buildSalePriceMap(supabase, items.flatMap((i) => (i.product ? [i.product] : []))),
     ]);
+
+  const subtotalCents = items.reduce(
+    (sum, i) => sum + (salePriceMap[i.product?.id ?? ""]?.sale_cents ?? i.product?.price_cents ?? 0) * i.quantity,
+    0,
+  );
+
+  const itemsWithSale = items.map((i) => ({
+    ...i,
+    product: i.product
+      ? { ...i.product, sale_price_cents: salePriceMap[i.product.id]?.sale_cents }
+      : i.product,
+  }));
 
   const zones: ShippingZone[] = (zonesResult.data ?? []) as ShippingZone[];
 
@@ -111,7 +120,7 @@ async function getCheckoutData() {
   }
 
   return {
-    items,
+    items: itemsWithSale,
     profile,
     email: authData.user.email,
     subtotalCents,
