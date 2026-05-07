@@ -1,0 +1,293 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* ── Design System Tokens ───────────────────────────────────────────── */
+  --ds-black:         #1A1A1A;
+  --ds-white:         #FFFFFF;
+  --ds-surface-art:   #F5F5F0;
+  --ds-surface-nails: #FAF7FF;
+  --ds-primary:       #FF3B3B;
+  --ds-secondary:     #FFD600;
+  --ds-tertiary:      #0047FF;
+  --ds-pop:           #FF6BFF;
+  --ds-nails-primary: #7C3AED;
+
+  /* Shadow tokens */
+  --ds-shadow-card:        4px 4px 0 #1A1A1A;
+  --ds-shadow-card-hover:  6px 6px 0 #1A1A1A;
+  --ds-shadow-btn:         4px 4px 0 #1A1A1A;
+  --ds-shadow-input-focus: 3px 3px 0 #FF3B3B;
+
+  /* Shadcn/ui compat — remapped to design system */
+  --primary:                  #1A1A1A;
+  --primary-foreground:       #FFFFFF;
+  --secondary:                #F5F5F0;
+  --secondary-foreground:     #1A1A1A;
+  --muted:                    #F5F5F0;
+  --muted-foreground:         #6B6B6B;
+  --card:                     #FFFFFF;
+  --card-foreground:          #1A1A1A;
+  --border:                   #1A1A1A;
+  --input:                    #1A1A1A;
+  --ring:                     #FF3B3B;
+  --destructive:              #FF3B3B;
+  --destructive-foreground:   #FFFFFF;
+  --accent:                   #FFD600;
+  --accent-foreground:        #1A1A1A;
+  --background:               #FFFFFF;
+  --foreground:               #1A1A1A;
+  --popover:                  #FFFFFF;
+  --popover-foreground:       #1A1A1A;
+  --chart-1:                  #FF3B3B;
+  --chart-2:                  #FFD600;
+  --chart-3:                  #0047FF;
+  --chart-4:                  #FF6BFF;
+  --chart-5:                  #7C3AED;
+  --radius:                   0rem;
+  --sidebar:                  #FFFFFF;
+  --sidebar-foreground:       #1A1A1A;
+  --sidebar-primary:          #FF3B3B;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent:           #FFD600;
+  --sidebar-accent-foreground:#1A1A1A;
+  --sidebar-border:           #1A1A1A;
+  --sidebar-ring:             #FF3B3B;
+}
+
+@theme inline {
+  --color-background:                 var(--background);
+  --color-foreground:                 var(--foreground);
+  --color-primary:                    var(--primary);
+  --color-primary-foreground:         var(--primary-foreground);
+  --color-secondary:                  var(--secondary);
+  --color-secondary-foreground:       var(--secondary-foreground);
+  --color-muted:                      var(--muted);
+  --color-muted-foreground:           var(--muted-foreground);
+  --color-card:                       var(--card);
+  --color-card-foreground:            var(--card-foreground);
+  --color-border:                     var(--border);
+  --color-input:                      var(--input);
+  --color-ring:                       var(--ring);
+  --color-destructive:                var(--destructive);
+  --color-destructive-foreground:     var(--destructive-foreground);
+  --color-accent:                     var(--accent);
+  --color-accent-foreground:          var(--accent-foreground);
+  --color-popover:                    var(--popover);
+  --color-popover-foreground:         var(--popover-foreground);
+  --color-chart-1:                    var(--chart-1);
+  --color-chart-2:                    var(--chart-2);
+  --color-chart-3:                    var(--chart-3);
+  --color-chart-4:                    var(--chart-4);
+  --color-chart-5:                    var(--chart-5);
+  --color-sidebar:                    var(--sidebar);
+  --color-sidebar-foreground:         var(--sidebar-foreground);
+  --color-sidebar-primary:            var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent:             var(--sidebar-accent);
+  --color-sidebar-accent-foreground:  var(--sidebar-accent-foreground);
+  --color-sidebar-border:             var(--sidebar-border);
+  --color-sidebar-ring:               var(--sidebar-ring);
+
+  /* Font families — set by next/font on <html>, overrideable per-layout */
+  --font-sans:    var(--font-body);
+  --font-mono:    var(--font-mono);
+  --font-display: var(--font-display);
+  --font-body:    var(--font-body);
+
+  /* All radii zeroed — per design system */
+  --radius-sm:  0rem;
+  --radius-md:  0rem;
+  --radius-lg:  0rem;
+  --radius-xl:  0rem;
+  --radius-2xl: 0rem;
+  --radius-3xl: 0rem;
+  --radius-4xl: 0rem;
+}
+
+/* ── Keyframes ──────────────────────────────────────────────────────────── */
+@keyframes ds-iridescent {
+  0%   { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+
+@keyframes ds-price-bounce {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.18); }
+  60%  { transform: scale(0.95); }
+  80%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+@keyframes ds-sparkle-burst {
+  0%   { transform: scale(0) rotate(0deg);    opacity: 1; }
+  80%  { transform: scale(1.4) rotate(180deg); opacity: 0.6; }
+  100% { transform: scale(0) rotate(360deg);  opacity: 0; }
+}
+
+@keyframes ds-slam-in-right {
+  from { transform: translateX(40px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+@keyframes ds-stagger-up {
+  from { transform: translateY(24px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@keyframes ds-spring-pop {
+  0%   { transform: scale(0.88); opacity: 0; }
+  60%  { transform: scale(1.04); opacity: 1; }
+  80%  { transform: scale(0.98); }
+  100% { transform: scale(1); }
+}
+
+/* ── Design system utility classes ─────────────────────────────────────── */
+@layer components {
+
+  /* Card — white bg, black border, offset shadow, hover shifts up-left */
+  .ds-card {
+    background-color: #FFFFFF;
+    border: 2px solid #1A1A1A;
+    box-shadow: 4px 4px 0 #1A1A1A;
+    border-radius: 0;
+    transition: transform 150ms ease-out, box-shadow 150ms ease-out;
+  }
+  .ds-card:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0 #1A1A1A;
+  }
+
+  /* Primary button — red fill */
+  .ds-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border: 2px solid #1A1A1A;
+    border-radius: 0;
+    font-weight: 900;
+    padding: 0.625rem 1.5rem;
+    background-color: #FF3B3B;
+    color: #FFFFFF;
+    transition: transform 120ms ease-out, box-shadow 120ms ease-out;
+    cursor: pointer;
+    user-select: none;
+  }
+  .ds-btn-primary:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 4px 4px 0 #1A1A1A;
+  }
+  .ds-btn-primary:active {
+    transform: translate(0, 0);
+    box-shadow: none;
+  }
+
+  /* Secondary button — yellow fill */
+  .ds-btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border: 2px solid #1A1A1A;
+    border-radius: 0;
+    font-weight: 900;
+    padding: 0.625rem 1.5rem;
+    background-color: #FFD600;
+    color: #1A1A1A;
+    transition: transform 120ms ease-out, box-shadow 120ms ease-out;
+    cursor: pointer;
+    user-select: none;
+  }
+  .ds-btn-secondary:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 4px 4px 0 #1A1A1A;
+  }
+  .ds-btn-secondary:active {
+    transform: translate(0, 0);
+    box-shadow: none;
+  }
+
+  /* Ghost button — transparent, shows border only */
+  .ds-btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border: 2px solid #1A1A1A;
+    border-radius: 0;
+    font-weight: 900;
+    padding: 0.625rem 1.5rem;
+    background-color: transparent;
+    color: #1A1A1A;
+    transition: transform 120ms ease-out, box-shadow 120ms ease-out,
+                background-color 120ms;
+    cursor: pointer;
+    user-select: none;
+  }
+  .ds-btn-ghost:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 4px 4px 0 #1A1A1A;
+    background-color: #F5F5F0;
+  }
+  .ds-btn-ghost:active {
+    transform: translate(0, 0);
+    box-shadow: none;
+  }
+
+  /* Input — sharp border, red focus */
+  .ds-input {
+    width: 100%;
+    border: 2px solid #1A1A1A;
+    border-radius: 0;
+    background-color: #FFFFFF;
+    color: #1A1A1A;
+    padding: 0.625rem 0.875rem;
+    outline: none;
+    transition: border-color 120ms, box-shadow 120ms;
+  }
+  .ds-input:focus {
+    border-color: #FF3B3B;
+    box-shadow: 3px 3px 0 #FF3B3B;
+  }
+  .ds-input::placeholder {
+    color: #6B6B6B;
+  }
+
+  /* Page surfaces */
+  .surface-art   { background-color: #F5F5F0; }
+  .surface-nails { background-color: #FAF7FF; }
+
+  /* Iridescent — nails product cards + custom order selectors only */
+  .ds-iridescent {
+    animation: ds-iridescent 4s linear infinite;
+  }
+}
+
+/* ── Base ───────────────────────────────────────────────────────────────── */
+html,
+body {
+  overflow-x: hidden;
+}
+
+*,
+*::before,
+*::after {
+  cursor: url("/cursor-64.png") 6 2, auto;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    background-color: #FFFFFF;
+    color: #1A1A1A;
+  }
+  html {
+    font-family: var(--font-body, Inter, sans-serif);
+  }
+}

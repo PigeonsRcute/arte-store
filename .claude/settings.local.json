@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(node -e \"const fm = require\\('framer-motion'\\); const gsap = require\\('gsap'\\); const slot = require\\('@radix-ui/react-slot'\\); const cva = require\\('class-variance-authority'\\); console.log\\('framer-motion:', require\\('./node_modules/framer-motion/package.json'\\).version\\); console.log\\('gsap:', require\\('./node_modules/gsap/package.json'\\).version\\); console.log\\('@radix-ui/react-slot:', require\\('./node_modules/@radix-ui/react-slot/package.json'\\).version\\); console.log\\('class-variance-authority:', require\\('./node_modules/class-variance-authority/package.json'\\).version\\);\")"
+    ]
+  }
+}
