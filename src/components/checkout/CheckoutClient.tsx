@@ -168,7 +168,6 @@ export default function CheckoutClient({
                 onClick={() => handleServiceChange("normal")}
                 className="rounded-2xl bg-white p-4 text-left shadow-sm ring-2 transition"
                 style={{
-                  ringColor: selectedService === "normal" ? "#FF3B3B" : undefined,
                   outline: selectedService === "normal"
                     ? "2px solid #FF3B3B"
                     : "2px solid #e4e4e7",
