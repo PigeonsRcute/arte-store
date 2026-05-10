@@ -23,6 +23,7 @@ const EMPTY_FORM: ProductFormValues = {
   stock: "",
   dimensions: "",
   editionSize: "",
+  weightGrams: "",
   isPublished: true,
 };
 
@@ -153,6 +154,7 @@ export default function ProductManager({
         stock_quantity: Number(values.stock),
         dimensions: values.dimensions.trim() || null,
         edition_size: values.editionSize ? Number(values.editionSize) : null,
+        weight_grams: values.weightGrams ? Number(values.weightGrams) : null,
         image_url: imageUrls[0] ?? null,
         image_urls: imageUrls,
         is_published: values.isPublished,
@@ -219,6 +221,7 @@ export default function ProductManager({
         stock: String(product.stock_quantity),
         dimensions: product.dimensions ?? "",
         editionSize: product.edition_size != null ? String(product.edition_size) : "",
+        weightGrams: product.weight_grams != null ? String(product.weight_grams) : "",
         isPublished: product.is_published,
       });
       // Existing image URLs as ImageItems (no file attached = existing)

@@ -6,10 +6,10 @@ import { createClient } from "@/lib/supabase/server";
 import {
   getActiveFreeShippingThreshold,
   getZoneForCountry,
-  calculateCartWeightKg,
+  calculateCartWeightGrams,
   calculateShipping,
 } from "@/lib/shipping";
-import type { ShippingZone } from "@/lib/types";
+import type { CttRate, ShippingZone } from "@/lib/types";
 
 export async function createTestOrder(formData: FormData) {
   const supabase = await createClient();
@@ -35,13 +35,14 @@ export async function createTestOrder(formData: FormData) {
   const adminSupabase = createAdminClient();
   const productIds = items.map((i) => i.productId);
 
-  const [productsResult, zonesResult, productCategoriesResult, freeThreshold] =
+  const [productsResult, zonesResult, cttRatesResult, productCategoriesResult, freeThreshold] =
     await Promise.all([
       adminSupabase
         .from("products")
-        .select("id, price_cents")
+        .select("id, price_cents, weight_grams")
         .in("id", productIds),
       adminSupabase.from("shipping_zones").select("*"),
+      adminSupabase.from("ctt_rates").select("*").order("service").order("max_weight_grams"),
       adminSupabase
         .from("product_categories")
         .select("product_id, categories(slug)")
@@ -54,6 +55,7 @@ export async function createTestOrder(formData: FormData) {
   );
 
   const zones: ShippingZone[] = (zonesResult.data ?? []) as ShippingZone[];
+  const cttRates: CttRate[] = (cttRatesResult.data ?? []) as CttRate[];
 
   const productCatSlugs: Record<string, string[]> = {};
   for (const pc of productCategoriesResult.data ?? []) {
@@ -68,9 +70,10 @@ export async function createTestOrder(formData: FormData) {
     return sum + (productMap[i.productId]?.price_cents ?? 0) * i.quantity;
   }, 0);
 
-  const totalWeightKg = calculateCartWeightKg(
+  const totalWeightGrams = calculateCartWeightGrams(
     items.map((i) => ({
       quantity: i.quantity,
+      weightGrams: productMap[i.productId]?.weight_grams ?? null,
       categorySlugs: productCatSlugs[i.productId] ?? [],
     })),
   );
@@ -83,9 +86,11 @@ export async function createTestOrder(formData: FormData) {
   if (zone) {
     ({ shippingCents } = calculateShipping({
       subtotalCents,
-      totalWeightKg,
+      totalWeightGrams,
       zone,
       freeThresholdCents: freeThreshold,
+      cttRates,
+      service: "normal",
     }));
   }
 
@@ -105,6 +110,7 @@ export async function createTestOrder(formData: FormData) {
       shipping_city: shippingCity || null,
       shipping_postal_code: shippingPostalCode || null,
       shipping_country: shippingCountry || null,
+      shipping_service: "normal",
     })
     .select("id")
     .single();

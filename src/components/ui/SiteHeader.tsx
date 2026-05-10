@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import CurrencyPicker from "@/components/ui/CurrencyPicker";
 
 interface Props {
   isAdmin: boolean;
@@ -64,6 +65,7 @@ function ArtHeader({ isAdmin }: { isAdmin: boolean }) {
               Admin
             </Link>
           )}
+          <CurrencyPicker />
         </div>
       </nav>
     </header>
@@ -122,6 +124,7 @@ function NailsHeader({ isAdmin }: { isAdmin: boolean }) {
               Admin
             </Link>
           )}
+          <CurrencyPicker />
         </div>
       </nav>
     </header>

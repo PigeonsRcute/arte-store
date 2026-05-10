@@ -5,14 +5,20 @@ import { capturePayPalOrder } from "@/lib/paypal";
 import {
   getActiveFreeShippingThreshold,
   getZoneForCountry,
-  calculateCartWeightKg,
+  calculateCartWeightGrams,
   calculateShipping,
 } from "@/lib/shipping";
-import type { ShippingZone } from "@/lib/types";
+import { FALLBACK_RATES, getCurrency, convertPrice } from "@/lib/currency";
+import { buildSalePriceMap } from "@/lib/sale-price";
+import type { CttRate, ShippingService, ShippingZone } from "@/lib/types";
 
 export async function GET(request: NextRequest) {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL!;
   const token = request.nextUrl.searchParams.get("token");
+  const chargedCurrencyCode = request.nextUrl.searchParams.get("currency") ?? "EUR";
+  const rawService = request.nextUrl.searchParams.get("service");
+  const shippingService: ShippingService =
+    rawService === "expresso" ? "expresso" : "normal";
 
   if (!token) {
     return NextResponse.redirect(`${baseUrl}/checkout?error=missing_token`);
@@ -27,10 +33,9 @@ export async function GET(request: NextRequest) {
 
   const userId = authData.user.id;
 
-  // Read cart snapshot before doing anything irreversible
   const { data: cartItems } = await supabase
     .from("cart_items")
-    .select("id, quantity, products(id, title, price_cents, stock_quantity)")
+    .select("id, quantity, products(id, title, price_cents, stock_quantity, weight_grams)")
     .eq("user_id", userId);
 
   if (!cartItems?.length) {
@@ -61,8 +66,7 @@ export async function GET(request: NextRequest) {
 
   const productIds = items.map((i) => i.product.id);
 
-  // Fetch everything needed for consistent shipping recalculation in parallel
-  const [profileResult, zonesResult, productCategoriesResult, freeThreshold] =
+  const [profileResult, zonesResult, cttRatesResult, productCategoriesResult, freeThreshold, salePriceMap] =
     await Promise.all([
       supabase
         .from("profiles")
@@ -70,18 +74,20 @@ export async function GET(request: NextRequest) {
         .eq("id", userId)
         .single(),
       supabase.from("shipping_zones").select("*"),
+      supabase.from("ctt_rates").select("*").order("service").order("max_weight_grams"),
       supabase
         .from("product_categories")
         .select("product_id, categories(slug)")
         .in("product_id", productIds),
       getActiveFreeShippingThreshold(supabase),
+      buildSalePriceMap(supabase, items.map((i) => i.product)),
     ]);
 
   const profile = profileResult.data;
   const country = profile?.country ?? "";
   const zones: ShippingZone[] = (zonesResult.data ?? []) as ShippingZone[];
+  const cttRates: CttRate[] = (cttRatesResult.data ?? []) as CttRate[];
 
-  // Build product_id → category slugs map
   const productCatSlugs: Record<string, string[]> = {};
   for (const pc of productCategoriesResult.data ?? []) {
     const slug = (pc.categories as unknown as { slug: string } | null)?.slug;
@@ -92,13 +98,14 @@ export async function GET(request: NextRequest) {
   }
 
   const subtotalCents = items.reduce(
-    (sum, i) => sum + i.product.price_cents * i.quantity,
+    (sum, i) => sum + (salePriceMap[i.product.id]?.sale_cents ?? i.product.price_cents) * i.quantity,
     0,
   );
 
-  const totalWeightKg = calculateCartWeightKg(
+  const totalWeightGrams = calculateCartWeightGrams(
     items.map((i) => ({
       quantity: i.quantity,
+      weightGrams: i.product.weight_grams ?? null,
       categorySlugs: productCatSlugs[i.product.id] ?? [],
     })),
   );
@@ -111,15 +118,22 @@ export async function GET(request: NextRequest) {
   if (zone) {
     ({ shippingCents } = calculateShipping({
       subtotalCents,
-      totalWeightKg,
+      totalWeightGrams,
       zone,
       freeThresholdCents: freeThreshold,
+      cttRates,
+      service: shippingService,
     }));
   }
 
   const adminSupabase = createAdminClient();
 
-  // Create the order record
+  const chargedCurrency = getCurrency(chargedCurrencyCode);
+  const chargedTotalAmount = convertPrice(subtotalCents + shippingCents, chargedCurrency, FALLBACK_RATES);
+  const chargedAmountCents = chargedCurrency.decimals === 0
+    ? Math.round(chargedTotalAmount)
+    : Math.round(chargedTotalAmount * 100);
+
   const { data: order, error: orderError } = await adminSupabase
     .from("orders")
     .insert({
@@ -135,6 +149,9 @@ export async function GET(request: NextRequest) {
       shipping_city: profile?.city ?? null,
       shipping_postal_code: profile?.postal_code ?? null,
       shipping_country: profile?.country ?? null,
+      shipping_service: shippingService,
+      charged_currency: chargedCurrencyCode,
+      charged_amount_cents: chargedAmountCents,
     })
     .select("id")
     .single();
@@ -146,7 +163,6 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Create order items, decrement stock, and clear cart in parallel
   await Promise.all([
     adminSupabase.from("order_items").insert(
       items.map((i) => ({
@@ -154,7 +170,7 @@ export async function GET(request: NextRequest) {
         product_id: i.product.id,
         quantity: i.quantity,
         unit_price_cents: i.product.price_cents,
-        shipping_cost_cents: 0, // shipping is now per-order, not per-item
+        shipping_cost_cents: 0,
       })),
     ),
     ...items.map((i) =>

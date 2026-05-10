@@ -28,6 +28,7 @@ export type ProductFormValues = {
   stock: string;
   dimensions: string;
   editionSize: string;
+  weightGrams: string;
   isPublished: boolean;
 };
 
@@ -192,8 +193,8 @@ export default function ProductForm({
         </label>
       </div>
 
-      {/* Dimensions / Edition size */}
-      <div className="grid gap-4 sm:grid-cols-2">
+      {/* Dimensions / Edition size / Weight */}
+      <div className="grid gap-4 sm:grid-cols-3">
         <label className="space-y-1">
           <span className="text-sm font-semibold text-zinc-700">Dimensions</span>
           <input
@@ -213,6 +214,17 @@ export default function ProductForm({
             onChange={(e) => onChange("editionSize", e.target.value)}
           />
         </label>
+        <div className="space-y-1">
+          <span className="text-sm font-semibold text-zinc-700">Weight (grams)</span>
+          <input
+            type="number" min="1"
+            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-400"
+            placeholder="e.g. 120"
+            value={values.weightGrams}
+            onChange={(e) => onChange("weightGrams", e.target.value)}
+          />
+          <p className="text-xs text-zinc-400">Leave empty to use category default weight</p>
+        </div>
       </div>
 
       {/* Categories */}

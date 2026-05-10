@@ -30,6 +30,7 @@ const EMPTY_FORM = {
   name: "", slug: "", description: "",
   shape: "coffin" as NailShape, length: "medium" as NailLength, finish: "glossy_top_coat" as NailFinish,
   price_cents: 0, stock_qty: 0, is_published: false,
+  weight_grams: null as number | null,
 };
 
 type ImageItem = { id: string; src: string; file?: File };
@@ -109,6 +110,7 @@ export default function NailProductManager({ initialProducts }: Props) {
       name: p.name, slug: p.slug, description: p.description ?? "",
       shape: p.shape, length: p.length, finish: p.finish,
       price_cents: p.price_cents, stock_qty: p.stock_qty, is_published: p.is_published,
+      weight_grams: p.weight_grams ?? null,
     });
     setImageItems(
       (p.images ?? []).map((src) => ({ id: `existing-${src}`, src }))
@@ -182,6 +184,7 @@ export default function NailProductManager({ initialProducts }: Props) {
         price_cents: form.price_cents,
         stock_qty: form.stock_qty,
         is_published: form.is_published,
+        weight_grams: form.weight_grams ?? null,
         images,
       };
 
@@ -281,6 +284,16 @@ export default function NailProductManager({ initialProducts }: Props) {
               <select value={form.finish} onChange={(e) => sel("finish", e.target.value)} className={inputCls}>
                 {FINISHES.map((f) => <option key={f} value={f}>{f.replace(/_/g, " ")}</option>)}
               </select>
+            </Field>
+            <Field label="Weight (grams)" hint="leave empty for default">
+              <input
+                type="number" min={1}
+                value={form.weight_grams ?? ""}
+                onChange={(e) => sel("weight_grams", e.target.value ? Number(e.target.value) : null)}
+                className={inputCls}
+                placeholder="e.g. 80"
+              />
+              <p className="text-xs text-zinc-400 mt-0.5">Leave empty to use category default weight</p>
             </Field>
           </div>
 

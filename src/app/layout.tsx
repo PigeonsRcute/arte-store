@@ -5,6 +5,7 @@ import { getIsAdmin } from "@/lib/auth";
 import AdminBar from "@/components/admin/AdminBar";
 import SiteHeader from "@/components/ui/SiteHeader";
 import ClickExplosion from "@/components/ui/click-explosion";
+import { CurrencyProvider } from "@/context/CurrencyContext";
 import "./globals.css";
 
 const playfair = Playfair_Display({
@@ -46,10 +47,12 @@ export default async function RootLayout({
       className={`${playfair.variable} ${inter.variable} ${spaceMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-white text-[#1A1A1A]">
-        <AdminBar />
-        <SiteHeader isAdmin={isAdmin} />
-        <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">{children}</main>
-        <ClickExplosion />
+        <CurrencyProvider>
+          <AdminBar />
+          <SiteHeader isAdmin={isAdmin} />
+          <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">{children}</main>
+          <ClickExplosion />
+        </CurrencyProvider>
       </body>
     </html>
   );

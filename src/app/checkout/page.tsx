@@ -6,10 +6,12 @@ import CheckoutClient from "@/components/checkout/CheckoutClient";
 import {
   getActiveFreeShippingThreshold,
   getZoneForCountry,
-  calculateCartWeightKg,
+  calculateCartWeightGrams,
   calculateShipping,
+  calculatePortugalShippingOptions,
+  isPortugalZone,
 } from "@/lib/shipping";
-import type { ShippingZone } from "@/lib/types";
+import type { CttRate, ShippingService, ShippingSettings, ShippingZone } from "@/lib/types";
 import type { ShippingEstimateResponse } from "@/app/api/shipping-estimate/route";
 
 async function getCheckoutData() {
@@ -22,7 +24,7 @@ async function getCheckoutData() {
     supabase
       .from("cart_items")
       .select(
-        "id, quantity, products(id, title, slug, price_cents, image_url, image_urls)",
+        "id, quantity, products(id, title, slug, price_cents, image_url, image_urls, weight_grams)",
       )
       .eq("user_id", authData.user.id),
     supabase
@@ -42,12 +44,13 @@ async function getCheckoutData() {
   const profile = profileResult.data;
   const country = profile?.country ?? "";
 
-  // Compute initial shipping estimate server-side
   const productIds = items.map((i) => i.product.id);
 
-  const [zonesResult, productCategoriesResult, freeThreshold, salePriceMap] =
+  const [zonesResult, cttRatesResult, settingsResult, productCategoriesResult, freeThreshold, salePriceMap] =
     await Promise.all([
       supabase.from("shipping_zones").select("*"),
+      supabase.from("ctt_rates").select("*").order("service").order("max_weight_grams"),
+      supabase.from("shipping_settings").select("*").eq("id", "default").single(),
       supabase
         .from("product_categories")
         .select("product_id, categories(slug)")
@@ -69,6 +72,9 @@ async function getCheckoutData() {
   }));
 
   const zones: ShippingZone[] = (zonesResult.data ?? []) as ShippingZone[];
+  const cttRates: CttRate[] = (cttRatesResult.data ?? []) as CttRate[];
+  const settings = settingsResult.data as ShippingSettings | null;
+  const defaultService: ShippingService = settings?.default_shipping_service ?? "normal";
 
   const productCatSlugs: Record<string, string[]> = {};
   for (const pc of productCategoriesResult.data ?? []) {
@@ -79,9 +85,10 @@ async function getCheckoutData() {
     }
   }
 
-  const totalWeightKg = calculateCartWeightKg(
+  const totalWeightGrams = calculateCartWeightGrams(
     items.map((i) => ({
       quantity: i.quantity,
+      weightGrams: i.product?.weight_grams ?? null,
       categorySlugs: productCatSlugs[i.product.id] ?? [],
     })),
   );
@@ -89,6 +96,12 @@ async function getCheckoutData() {
   const zone = country
     ? getZoneForCountry(country, zones)
     : (zones.find((z) => z.countries.length === 0) ?? null);
+
+  // For Portugal: expose both service options
+  let cttOptions: { normalCents: number | null; expressoCents: number | null } | null = null;
+  if (zone && isPortugalZone(zone)) {
+    cttOptions = calculatePortugalShippingOptions(totalWeightGrams, cttRates);
+  }
 
   let initialShipping: ShippingEstimateResponse;
 
@@ -100,22 +113,26 @@ async function getCheckoutData() {
         freeThreshold > 0 ? Math.max(0, freeThreshold - subtotalCents) : 0,
       freeThresholdCents: freeThreshold,
       zoneName: null,
+      cttOptions: null,
+      defaultService,
     };
   } else {
-    const { shippingCents, isFree, amountAwayFromFreeCents } = calculateShipping(
-      {
-        subtotalCents,
-        totalWeightKg,
-        zone,
-        freeThresholdCents: freeThreshold,
-      },
-    );
+    const { shippingCents, isFree, amountAwayFromFreeCents } = calculateShipping({
+      subtotalCents,
+      totalWeightGrams,
+      zone,
+      freeThresholdCents: freeThreshold,
+      cttRates,
+      service: defaultService,
+    });
     initialShipping = {
       shippingCents,
       isFree,
       amountAwayFromFreeCents,
       freeThresholdCents: freeThreshold,
       zoneName: zone.name,
+      cttOptions,
+      defaultService,
     };
   }
 
@@ -125,6 +142,7 @@ async function getCheckoutData() {
     email: authData.user.email,
     subtotalCents,
     initialShipping,
+    totalWeightGrams,
   };
 }
 
@@ -150,7 +168,6 @@ export default async function CheckoutPage({
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-white to-pink-50 px-4 py-8 sm:px-8">
       <div className="mx-auto max-w-5xl">
-        {/* Header */}
         <div className="mb-8 flex items-center gap-3">
           <Link
             href="/cart"
@@ -174,6 +191,7 @@ export default async function CheckoutPage({
           email={data.email}
           subtotalCents={data.subtotalCents}
           initialShipping={data.initialShipping}
+          totalWeightGrams={data.totalWeightGrams}
         />
       </div>
     </div>

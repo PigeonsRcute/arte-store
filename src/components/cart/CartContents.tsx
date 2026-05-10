@@ -1,30 +1,44 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { updateCartQuantity, removeFromCart } from "@/lib/cart";
 import type { CartItemWithProduct, SalePrice } from "@/lib/types";
+import type { ShippingEstimateResponse } from "@/app/api/shipping-estimate/route";
+import { useCurrency } from "@/context/CurrencyContext";
+import { formatEurBaseline } from "@/lib/currency";
 
 type CartContentsProps = {
   initialItems: CartItemWithProduct[];
   freeShippingThresholdCents: number;
   salePriceMap: Record<string, SalePrice>;
+  profileCountry: string | null;
 };
-
-function formatEur(cents: number) {
-  return `€${(cents / 100).toFixed(2)}`;
-}
 
 export default function CartContents({
   initialItems,
   freeShippingThresholdCents,
   salePriceMap,
+  profileCountry,
 }: CartContentsProps) {
   const supabase = createClient();
   const [items, setItems] = useState<CartItemWithProduct[]>(initialItems);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [shippingEstimate, setShippingEstimate] = useState<ShippingEstimateResponse | null>(null);
+  const { format, currency } = useCurrency();
+  const isEur = currency.code === "EUR";
+
+  useEffect(() => {
+    if (!profileCountry) return;
+    fetch(`/api/shipping-estimate?country=${encodeURIComponent(profileCountry)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: ShippingEstimateResponse | null) => {
+        if (data) setShippingEstimate(data);
+      })
+      .catch(() => {});
+  }, [profileCountry]);
 
   const subtotalCents = items.reduce((sum, item) => {
     const p = item.products;
@@ -146,15 +160,25 @@ export default function CartContents({
                 )}
                 {salePrice ? (
                   <span className="text-sm font-bold text-red-600">
-                    ${(salePrice.sale_cents / 100).toFixed(2)}{" "}
+                    {format(salePrice.sale_cents)}{" "}
                     <span className="text-xs font-normal text-zinc-400 line-through">
-                      ${(product.price_cents / 100).toFixed(2)}
+                      {format(product.price_cents)}
                     </span>{" "}
                     each
+                    {!isEur && (
+                      <span className="block text-[10px] font-normal text-zinc-400">
+                        {formatEurBaseline(salePrice.sale_cents)} EUR
+                      </span>
+                    )}
                   </span>
                 ) : (
                   <span className="text-sm font-bold text-pink-700">
-                    ${(product.price_cents / 100).toFixed(2)} each
+                    {format(product.price_cents)} each
+                    {!isEur && (
+                      <span className="block text-[10px] font-normal text-zinc-400">
+                        {formatEurBaseline(product.price_cents)} EUR
+                      </span>
+                    )}
                   </span>
                 )}
               </div>
@@ -185,7 +209,7 @@ export default function CartContents({
                 </div>
 
                 <span className="text-base font-black text-zinc-900">
-                  ${(subtotal / 100).toFixed(2)}
+                  {format(subtotal)}
                 </span>
 
                 <button
@@ -213,7 +237,7 @@ export default function CartContents({
                 <span className="text-zinc-400"> ×{item.quantity}</span>
               </span>
               <span className="font-semibold text-zinc-800">
-                ${(((salePriceMap[item.products?.id ?? ""]?.sale_cents ?? item.products?.price_cents ?? 0) * item.quantity) / 100).toFixed(2)}
+                {format((salePriceMap[item.products?.id ?? ""]?.sale_cents ?? item.products?.price_cents ?? 0) * item.quantity)}
               </span>
             </div>
           ))}
@@ -228,7 +252,7 @@ export default function CartContents({
               </p>
             ) : (
               <p className="text-xs font-semibold text-zinc-500 mb-2">
-                {formatEur(amountAwayCents)} away from free shipping
+                {format(amountAwayCents)} away from free shipping
               </p>
             )}
             <div className="h-2 w-full rounded-full bg-zinc-100 overflow-hidden">
@@ -244,10 +268,22 @@ export default function CartContents({
           </div>
         )}
 
+        {/* Estimated shipping */}
+        {shippingEstimate && !shippingEstimate.isFree && shippingEstimate.zoneName && (
+          <p className="mt-3 text-xs text-zinc-400">
+            Estimated shipping:{" "}
+            <span className="font-semibold text-zinc-600">
+              {shippingEstimate.cttOptions
+                ? `from ${format(shippingEstimate.cttOptions.normalCents ?? shippingEstimate.shippingCents)} (Standard)`
+                : format(shippingEstimate.shippingCents)}
+            </span>
+          </p>
+        )}
+
         <div className="mt-4 flex items-center justify-between">
           <span className="text-base font-black text-zinc-900">Total</span>
           <span className="text-2xl font-black text-red-600">
-            ${(total / 100).toFixed(2)}
+            {format(total)}
           </span>
         </div>
 

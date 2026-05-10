@@ -4,6 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import type { Product, SalePrice } from "@/lib/types";
 import AddToCartButton from "@/components/shop/AddToCartButton";
+import { useCurrency } from "@/context/CurrencyContext";
+import { formatEurBaseline } from "@/lib/currency";
 
 type ProductCardProps = {
   product: Product;
@@ -13,6 +15,8 @@ type ProductCardProps = {
 
 export default function ProductCard({ product, isAdmin, salePrice }: ProductCardProps) {
   const heroImage = product.image_urls?.[0] || product.image_url;
+  const { format, currency } = useCurrency();
+  const isEur = currency.code === "EUR";
 
   return (
     <article className="group relative flex flex-col bg-white border-2 border-[#1A1A1A] shadow-[4px_4px_0_#1A1A1A] transition-all duration-150 hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[6px_6px_0_#1A1A1A]">
@@ -68,16 +72,28 @@ export default function ProductCard({ product, isAdmin, salePrice }: ProductCard
             {salePrice ? (
               <div className="flex flex-col">
                 <span className="font-mono text-lg font-black text-[#FF3B3B]">
-                  ${(salePrice.sale_cents / 100).toFixed(2)}
+                  {format(salePrice.sale_cents)}
                 </span>
                 <span className="font-mono text-xs text-[#6B6B6B] line-through">
-                  ${(salePrice.original_cents / 100).toFixed(2)}
+                  {format(salePrice.original_cents)}
                 </span>
+                {!isEur && (
+                  <span className="font-mono text-[10px] text-[#6B6B6B]/70">
+                    {formatEurBaseline(salePrice.sale_cents)} EUR
+                  </span>
+                )}
               </div>
             ) : (
-              <span className="font-mono text-lg font-black text-[#1A1A1A]">
-                ${(product.price_cents / 100).toFixed(2)}
-              </span>
+              <div className="flex flex-col">
+                <span className="font-mono text-lg font-black text-[#1A1A1A]">
+                  {format(product.price_cents)}
+                </span>
+                {!isEur && (
+                  <span className="font-mono text-[10px] text-[#6B6B6B]/70">
+                    {formatEurBaseline(product.price_cents)} EUR
+                  </span>
+                )}
+              </div>
             )}
             <span className="border-2 border-[#1A1A1A] bg-white px-4 py-1.5 font-mono text-xs font-black text-[#1A1A1A] shadow-[2px_2px_0_#1A1A1A] transition-all hover:-translate-x-px hover:-translate-y-px hover:shadow-[3px_3px_0_#1A1A1A]">
               View →

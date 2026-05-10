@@ -3,10 +3,12 @@ import { createClient } from "@/lib/supabase/server";
 import {
   getActiveFreeShippingThreshold,
   getZoneForCountry,
-  calculateCartWeightKg,
+  calculateCartWeightGrams,
   calculateShipping,
+  calculatePortugalShippingOptions,
+  isPortugalZone,
 } from "@/lib/shipping";
-import type { ShippingZone } from "@/lib/types";
+import type { CttRate, ShippingService, ShippingZone } from "@/lib/types";
 
 export interface ShippingEstimateResponse {
   shippingCents: number;
@@ -14,10 +16,13 @@ export interface ShippingEstimateResponse {
   amountAwayFromFreeCents: number;
   freeThresholdCents: number;
   zoneName: string | null;
+  // Present for Portugal — both CTT service prices
+  cttOptions: { normalCents: number | null; expressoCents: number | null } | null;
+  defaultService: ShippingService;
 }
 
 /**
- * GET /api/shipping-estimate?country=PT
+ * GET /api/shipping-estimate?country=PT&service=normal
  *
  * Returns a shipping cost estimate for the authenticated user's current cart
  * and the given country code. Called live when the user changes their
@@ -25,6 +30,8 @@ export interface ShippingEstimateResponse {
  */
 export async function GET(request: NextRequest) {
   const country = request.nextUrl.searchParams.get("country") ?? "";
+  const rawService = request.nextUrl.searchParams.get("service");
+  const service: ShippingService = rawService === "expresso" ? "expresso" : "normal";
 
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
@@ -35,20 +42,20 @@ export async function GET(request: NextRequest) {
 
   const userId = authData.user.id;
 
-  // Fetch cart items, zones, free threshold, and product categories in parallel
   const { data: cartItems } = await supabase
     .from("cart_items")
-    .select("quantity, products(id, price_cents)")
+    .select("quantity, products(id, price_cents, weight_grams)")
     .eq("user_id", userId);
 
   if (!cartItems?.length) {
-    // Empty cart — no shipping needed
     const payload: ShippingEstimateResponse = {
       shippingCents: 0,
       isFree: false,
       amountAwayFromFreeCents: 0,
       freeThresholdCents: 0,
       zoneName: null,
+      cttOptions: null,
+      defaultService: "normal",
     };
     return NextResponse.json(payload);
   }
@@ -64,9 +71,11 @@ export async function GET(request: NextRequest) {
     .map((i) => i.product?.id)
     .filter((id): id is string => id != null);
 
-  const [zonesResult, productCategoriesResult, freeThreshold] =
+  const [zonesResult, cttRatesResult, settingsResult, productCategoriesResult, freeThreshold] =
     await Promise.all([
       supabase.from("shipping_zones").select("*"),
+      supabase.from("ctt_rates").select("*").order("service").order("max_weight_grams"),
+      supabase.from("shipping_settings").select("default_shipping_service").eq("id", "default").single(),
       supabase
         .from("product_categories")
         .select("product_id, categories(slug)")
@@ -75,8 +84,10 @@ export async function GET(request: NextRequest) {
     ]);
 
   const zones: ShippingZone[] = (zonesResult.data ?? []) as ShippingZone[];
+  const cttRates: CttRate[] = (cttRatesResult.data ?? []) as CttRate[];
+  const defaultService: ShippingService =
+    settingsResult.data?.default_shipping_service === "expresso" ? "expresso" : "normal";
 
-  // Build product_id → category slugs map
   const productCatSlugs: Record<string, string[]> = {};
   for (const pc of productCategoriesResult.data ?? []) {
     const slug = (pc.categories as unknown as { slug: string } | null)?.slug;
@@ -91,9 +102,10 @@ export async function GET(request: NextRequest) {
     0,
   );
 
-  const totalWeightKg = calculateCartWeightKg(
+  const totalWeightGrams = calculateCartWeightGrams(
     items.map((i) => ({
       quantity: i.quantity,
+      weightGrams: i.product?.weight_grams ?? null,
       categorySlugs: productCatSlugs[i.product?.id ?? ""] ?? [],
     })),
   );
@@ -110,15 +122,23 @@ export async function GET(request: NextRequest) {
         freeThreshold > 0 ? Math.max(0, freeThreshold - subtotalCents) : 0,
       freeThresholdCents: freeThreshold,
       zoneName: null,
+      cttOptions: null,
+      defaultService,
     };
     return NextResponse.json(payload);
   }
 
+  const cttOptions = isPortugalZone(zone)
+    ? calculatePortugalShippingOptions(totalWeightGrams, cttRates)
+    : null;
+
   const { shippingCents, isFree, amountAwayFromFreeCents } = calculateShipping({
     subtotalCents,
-    totalWeightKg,
+    totalWeightGrams,
     zone,
     freeThresholdCents: freeThreshold,
+    cttRates,
+    service,
   });
 
   const payload: ShippingEstimateResponse = {
@@ -127,6 +147,8 @@ export async function GET(request: NextRequest) {
     amountAwayFromFreeCents,
     freeThresholdCents: freeThreshold,
     zoneName: zone.name,
+    cttOptions,
+    defaultService,
   };
 
   return NextResponse.json(payload);

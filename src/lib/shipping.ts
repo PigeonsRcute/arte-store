@@ -1,24 +1,47 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ShippingZone } from "@/lib/types";
+import type { CttRate, ShippingService, ShippingZone } from "@/lib/types";
 
-// Category slug → weight in kg.
-// Only categories that deviate from the default need an entry here.
-const CATEGORY_WEIGHTS: Record<string, number> = {
-  stickers: 0.1,
-  prints:   0.3,
-  keychains: 0.2,
+// Category slug → default weight in grams.
+// Used only when a product has no explicit weight_grams set.
+const CATEGORY_DEFAULT_GRAMS: Record<string, number> = {
+  stickers:  50,
+  prints:   200,
+  supagaes: 200,
+  keychains: 100,
+  pins:       80,
 };
-const DEFAULT_WEIGHT_KG = 0.3;
+const DEFAULT_WEIGHT_GRAMS = 150;
 
 /**
- * Returns the shipping weight for a product given its category slugs.
- * Uses the first slug that has an explicit weight mapping; falls back to default.
+ * Returns the shipping weight in grams for a product.
+ * Prefers the explicit weight_grams field; falls back to category default.
  */
-export function getProductWeightKg(categorySlugs: string[]): number {
+export function getProductWeightGrams(
+  weightGrams: number | null | undefined,
+  categorySlugs: string[],
+): number {
+  if (weightGrams != null && weightGrams > 0) return weightGrams;
   for (const slug of categorySlugs) {
-    if (slug in CATEGORY_WEIGHTS) return CATEGORY_WEIGHTS[slug];
+    if (slug in CATEGORY_DEFAULT_GRAMS) return CATEGORY_DEFAULT_GRAMS[slug];
   }
-  return DEFAULT_WEIGHT_KG;
+  return DEFAULT_WEIGHT_GRAMS;
+}
+
+/**
+ * Calculates total cart weight in grams.
+ */
+export function calculateCartWeightGrams(
+  items: Array<{
+    quantity: number;
+    weightGrams: number | null | undefined;
+    categorySlugs: string[];
+  }>,
+): number {
+  return items.reduce(
+    (sum, item) =>
+      sum + getProductWeightGrams(item.weightGrams, item.categorySlugs) * item.quantity,
+    0,
+  );
 }
 
 /**
@@ -28,7 +51,7 @@ export function getProductWeightKg(categorySlugs: string[]): number {
  */
 export function getZoneForCountry(
   country: string,
-  zones: ShippingZone[]
+  zones: ShippingZone[],
 ): ShippingZone | null {
   const upper = country.toUpperCase();
   return (
@@ -39,32 +62,54 @@ export function getZoneForCountry(
 }
 
 /**
- * Calculates total cart weight in kg from items with resolved category slugs.
+ * Looks up the CTT rate for a given service and weight.
+ * Returns price_cents for the first tier whose max_weight_grams >= totalGrams.
+ * Returns null if no tier covers the weight (order too heavy for CTT).
  */
-export function calculateCartWeightKg(
-  items: Array<{ quantity: number; categorySlugs: string[] }>
-): number {
-  return items.reduce(
-    (sum, item) => sum + getProductWeightKg(item.categorySlugs) * item.quantity,
-    0,
-  );
+export function getCttRateForWeight(
+  cttRates: CttRate[],
+  service: ShippingService,
+  totalGrams: number,
+): number | null {
+  const tiers = cttRates
+    .filter((r) => r.service === service)
+    .sort((a, b) => a.max_weight_grams - b.max_weight_grams);
+
+  const tier = tiers.find((r) => totalGrams <= r.max_weight_grams);
+  return tier?.price_cents ?? null;
+}
+
+/**
+ * Returns true when the zone covers Portugal (contains "PT").
+ * Used to decide whether to apply CTT rates vs flat+weight formula.
+ */
+export function isPortugalZone(zone: ShippingZone): boolean {
+  return zone.countries.includes("PT");
 }
 
 /**
  * Calculates the final shipping cost for an order.
  *
+ * - For the Portugal zone: uses CTT rates table for the requested service.
+ * - For all other zones: uses flat_rate_cents + weight_rate_cents_per_kg × kg.
+ *
  * freeThresholdCents = 0 means the feature is disabled.
+ * Returns shippingCents for the requested service.
  */
 export function calculateShipping({
   subtotalCents,
-  totalWeightKg,
+  totalWeightGrams,
   zone,
   freeThresholdCents,
+  cttRates,
+  service = "normal",
 }: {
   subtotalCents: number;
-  totalWeightKg: number;
+  totalWeightGrams: number;
   zone: ShippingZone;
   freeThresholdCents: number;
+  cttRates: CttRate[];
+  service?: ShippingService;
 }): {
   shippingCents: number;
   isFree: boolean;
@@ -82,11 +127,41 @@ export function calculateShipping({
     return { shippingCents: 0, isFree: true, amountAwayFromFreeCents: 0 };
   }
 
-  const shippingCents =
-    zone.flat_rate_cents +
-    Math.round(zone.weight_rate_cents_per_kg * totalWeightKg);
+  let shippingCents: number;
+
+  if (isPortugalZone(zone)) {
+    const rate = getCttRateForWeight(cttRates, service, totalWeightGrams);
+    // If weight exceeds all CTT tiers, fall back to the heaviest tier price.
+    shippingCents =
+      rate ??
+      Math.max(
+        ...cttRates
+          .filter((r) => r.service === service)
+          .map((r) => r.price_cents),
+        0,
+      );
+  } else {
+    const totalWeightKg = totalWeightGrams / 1000;
+    shippingCents =
+      zone.flat_rate_cents +
+      Math.round(zone.weight_rate_cents_per_kg * totalWeightKg);
+  }
 
   return { shippingCents, isFree: false, amountAwayFromFreeCents };
+}
+
+/**
+ * Calculates both CTT Normal and Expresso prices for a Portugal order.
+ * Returns null for each if outside CTT weight limits.
+ */
+export function calculatePortugalShippingOptions(
+  totalWeightGrams: number,
+  cttRates: CttRate[],
+): { normalCents: number | null; expressoCents: number | null } {
+  return {
+    normalCents: getCttRateForWeight(cttRates, "normal", totalWeightGrams),
+    expressoCents: getCttRateForWeight(cttRates, "expresso", totalWeightGrams),
+  };
 }
 
 /**

@@ -1,17 +1,33 @@
 "use client";
 
 import { useState } from "react";
+import { useCurrency } from "@/context/CurrencyContext";
+import type { ShippingService } from "@/lib/types";
 
-export default function PayPalButton() {
+type Props = {
+  shippingService?: ShippingService;
+};
+
+export default function PayPalButton({ shippingService = "normal" }: Props) {
   const [state, setState] = useState<"idle" | "loading" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const { currency, rates } = useCurrency();
 
   const handleClick = async () => {
     setState("loading");
     setErrorMsg(null);
 
     try {
-      const res = await fetch("/api/paypal/create-order", { method: "POST" });
+      const res = await fetch("/api/paypal/create-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currencyCode: currency.code,
+          currencyDecimals: currency.decimals,
+          currencyRate: rates[currency.code] ?? 1,
+          shippingService,
+        }),
+      });
       const data = await res.json();
 
       if (!res.ok) {

@@ -10,6 +10,7 @@ async function getCartData(): Promise<{
   isSignedIn: boolean;
   freeShippingThresholdCents: number;
   salePriceMap: SalePriceMap;
+  profileCountry: string | null;
 }> {
   try {
     const supabase = await createClient();
@@ -17,16 +18,17 @@ async function getCartData(): Promise<{
     const user = authData?.user ?? null;
 
     if (!user) {
-      return { items: [], isSignedIn: false, freeShippingThresholdCents: 0, salePriceMap: {} };
+      return { items: [], isSignedIn: false, freeShippingThresholdCents: 0, salePriceMap: {}, profileCountry: null };
     }
 
-    const [cartResult, threshold] = await Promise.all([
+    const [cartResult, threshold, profileResult] = await Promise.all([
       supabase
         .from("cart_items")
         .select("*, products(*)")
         .eq("user_id", user.id)
         .order("created_at", { ascending: true }),
       getActiveFreeShippingThreshold(supabase),
+      supabase.from("profiles").select("country").eq("id", user.id).single(),
     ]);
 
     const items = (cartResult.data ?? []) as CartItemWithProduct[];
@@ -42,14 +44,15 @@ async function getCartData(): Promise<{
       isSignedIn: true,
       freeShippingThresholdCents: threshold,
       salePriceMap,
+      profileCountry: profileResult.data?.country ?? null,
     };
   } catch {
-    return { items: [], isSignedIn: false, freeShippingThresholdCents: 0, salePriceMap: {} };
+    return { items: [], isSignedIn: false, freeShippingThresholdCents: 0, salePriceMap: {}, profileCountry: null };
   }
 }
 
 export default async function CartPage() {
-  const { items, isSignedIn, freeShippingThresholdCents, salePriceMap } = await getCartData();
+  const { items, isSignedIn, freeShippingThresholdCents, salePriceMap, profileCountry } = await getCartData();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-white to-pink-50 px-4 py-8 sm:px-8 lg:px-12">
@@ -94,6 +97,7 @@ export default async function CartPage() {
             initialItems={items}
             freeShippingThresholdCents={freeShippingThresholdCents}
             salePriceMap={salePriceMap}
+            profileCountry={profileCountry}
           />
         )}
       </div>

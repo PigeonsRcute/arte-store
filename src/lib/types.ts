@@ -34,6 +34,7 @@ export interface Product {
   dimensions: string | null;
   edition_size: number | null;
   shipping_cost_cents: number;
+  weight_grams: number | null;
   is_published: boolean;
   created_at: string;
 }
@@ -69,6 +70,7 @@ export interface Order {
   shipping_city: string | null;
   shipping_postal_code: string | null;
   shipping_country: string | null;
+  shipping_service: ShippingService;
   created_at: string;
 }
 
@@ -137,6 +139,8 @@ export interface SaleEvent {
 
 // --- Shipping ---
 
+export type ShippingService = "normal" | "expresso";
+
 export interface ShippingZone {
   id: string;
   name: string;
@@ -148,6 +152,14 @@ export interface ShippingZone {
 export interface ShippingSettings {
   id: string;
   global_free_shipping_threshold_cents: number;
+  default_shipping_service: ShippingService;
+}
+
+export interface CttRate {
+  id: string;
+  service: ShippingService;
+  max_weight_grams: number;
+  price_cents: number;
 }
 
 export interface EventProduct {
@@ -307,6 +319,7 @@ export interface NailProduct {
   length: NailLength;
   finish: NailFinish;
   stock_qty: number;
+  weight_grams: number | null;
   is_published: boolean;
   created_at: string;
 }

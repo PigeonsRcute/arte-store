@@ -287,13 +287,18 @@ export default function ShippingZonesManager({
       {/* Weight reference */}
       <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
         <h2 className="mb-2 text-sm font-black uppercase tracking-widest text-zinc-500">
-          Category Weight Reference
+          Category Default Weights
         </h2>
-        <div className="grid grid-cols-2 gap-1 text-xs text-zinc-600 sm:grid-cols-4">
-          <span>Stickers — 0.1 kg</span>
-          <span>Prints — 0.3 kg</span>
-          <span>Keychains — 0.2 kg</span>
-          <span>All others — 0.3 kg (default)</span>
+        <p className="mb-2 text-xs text-zinc-400">
+          Applied when a product has no explicit weight set. You can override per product in the Products admin.
+        </p>
+        <div className="grid grid-cols-2 gap-1 text-xs text-zinc-600 sm:grid-cols-5">
+          <span>Stickers — 50g</span>
+          <span>Prints — 200g</span>
+          <span>Supagaes — 200g</span>
+          <span>Keychains — 100g</span>
+          <span>Pins — 80g</span>
+          <span className="sm:col-span-5 text-zinc-400">All other categories — 150g (default)</span>
         </div>
       </div>
     </div>

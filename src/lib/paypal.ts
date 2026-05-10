@@ -29,30 +29,41 @@ export type PayPalOrderItem = {
   unitPriceCents: number;
 };
 
+function fmtPayPal(amount: number, decimals: 0 | 2): string {
+  return decimals === 0 ? String(Math.round(amount)) : amount.toFixed(2);
+}
+
 export async function createPayPalOrder(params: {
   subtotalCents: number;
   shippingCents: number;
   items: PayPalOrderItem[];
   returnUrl: string;
   cancelUrl: string;
-}): Promise<{ id: string; approvalUrl: string }> {
+  currency: { code: string; decimals: 0 | 2; rate: number };
+}): Promise<{ id: string; approvalUrl: string; chargedAmount: number }> {
   const token = await getAccessToken();
+
+  const { code, decimals, rate } = params.currency;
+
+  const subtotalConverted = (params.subtotalCents / 100) * rate;
+  const shippingConverted = (params.shippingCents / 100) * rate;
+  const totalConverted = subtotalConverted + shippingConverted;
 
   const body = {
     intent: "CAPTURE",
     purchase_units: [
       {
         amount: {
-          currency_code: "USD",
-          value: ((params.subtotalCents + params.shippingCents) / 100).toFixed(2),
+          currency_code: code,
+          value: fmtPayPal(totalConverted, decimals),
           breakdown: {
             item_total: {
-              currency_code: "USD",
-              value: (params.subtotalCents / 100).toFixed(2),
+              currency_code: code,
+              value: fmtPayPal(subtotalConverted, decimals),
             },
             shipping: {
-              currency_code: "USD",
-              value: (params.shippingCents / 100).toFixed(2),
+              currency_code: code,
+              value: fmtPayPal(shippingConverted, decimals),
             },
           },
         },
@@ -60,8 +71,8 @@ export async function createPayPalOrder(params: {
           name: item.name,
           quantity: String(item.quantity),
           unit_amount: {
-            currency_code: "USD",
-            value: (item.unitPriceCents / 100).toFixed(2),
+            currency_code: code,
+            value: fmtPayPal((item.unitPriceCents / 100) * rate, decimals),
           },
           category: "PHYSICAL_GOODS",
         })),
@@ -99,7 +110,9 @@ export async function createPayPalOrder(params: {
 
   if (!approvalUrl) throw new Error("No approval URL in PayPal response");
 
-  return { id: data.id as string, approvalUrl: approvalUrl as string };
+  const chargedAmount = decimals === 0 ? Math.round(totalConverted) : totalConverted;
+
+  return { id: data.id as string, approvalUrl: approvalUrl as string, chargedAmount };
 }
 
 export async function capturePayPalOrder(paypalOrderId: string): Promise<{

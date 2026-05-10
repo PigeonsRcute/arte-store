@@ -6,6 +6,9 @@ import Link from "next/link";
 import PayPalButton from "@/components/checkout/PayPalButton";
 import ShippingAddressSection from "@/components/checkout/ShippingAddressSection";
 import type { ShippingEstimateResponse } from "@/app/api/shipping-estimate/route";
+import type { ShippingService } from "@/lib/types";
+import { useCurrency } from "@/context/CurrencyContext";
+import { formatEurBaseline } from "@/lib/currency";
 
 type CartItemForCheckout = {
   id: string;
@@ -34,15 +37,8 @@ type Props = {
   email: string | undefined;
   subtotalCents: number;
   initialShipping: ShippingEstimateResponse;
+  totalWeightGrams: number;
 };
-
-function formatPrice(cents: number) {
-  return `$${(cents / 100).toFixed(2)}`;
-}
-
-function formatEur(cents: number) {
-  return `€${(cents / 100).toFixed(2)}`;
-}
 
 export default function CheckoutClient({
   items,
@@ -50,26 +46,46 @@ export default function CheckoutClient({
   email,
   subtotalCents,
   initialShipping,
+  totalWeightGrams,
 }: Props) {
   const [shipping, setShipping] =
     useState<ShippingEstimateResponse>(initialShipping);
+  const [selectedService, setSelectedService] = useState<ShippingService>(
+    initialShipping.defaultService,
+  );
   const [fetchingShipping, setFetchingShipping] = useState(false);
+  const { format, currency } = useCurrency();
+  const isEur = currency.code === "EUR";
 
-  const totalCents = subtotalCents + shipping.shippingCents;
+  // For Portugal, derive displayed shipping cost from cttOptions + selectedService
+  const isPortugal = shipping.cttOptions !== null;
+  const displayedShippingCents = isPortugal
+    ? (selectedService === "expresso"
+        ? (shipping.cttOptions?.expressoCents ?? shipping.shippingCents)
+        : (shipping.cttOptions?.normalCents ?? shipping.shippingCents))
+    : shipping.shippingCents;
+
+  const totalCents = subtotalCents + (shipping.isFree ? 0 : displayedShippingCents);
 
   const handleCountrySaved = async (country: string) => {
     setFetchingShipping(true);
     try {
       const res = await fetch(
-        `/api/shipping-estimate?country=${encodeURIComponent(country)}`,
+        `/api/shipping-estimate?country=${encodeURIComponent(country)}&service=${selectedService}`,
       );
       if (res.ok) {
         const data: ShippingEstimateResponse = await res.json();
         setShipping(data);
+        // Reset service to admin default whenever country changes
+        setSelectedService(data.defaultService);
       }
     } finally {
       setFetchingShipping(false);
     }
+  };
+
+  const handleServiceChange = (service: ShippingService) => {
+    setSelectedService(service);
   };
 
   return (
@@ -109,14 +125,24 @@ export default function CheckoutClient({
                 </div>
                 {item.product.sale_price_cents ? (
                   <span className="text-sm font-semibold text-red-600">
-                    {formatPrice(item.product.sale_price_cents * item.quantity)}{" "}
+                    {format(item.product.sale_price_cents * item.quantity)}{" "}
                     <span className="text-xs font-normal text-zinc-400 line-through">
-                      {formatPrice(item.product.price_cents * item.quantity)}
+                      {format(item.product.price_cents * item.quantity)}
                     </span>
+                    {!isEur && (
+                      <span className="block text-[10px] font-normal text-zinc-400">
+                        {formatEurBaseline(item.product.sale_price_cents * item.quantity)} EUR
+                      </span>
+                    )}
                   </span>
                 ) : (
                   <span className="text-sm font-semibold text-zinc-800">
-                    {formatPrice(item.product.price_cents * item.quantity)}
+                    {format(item.product.price_cents * item.quantity)}
+                    {!isEur && (
+                      <span className="block text-[10px] font-normal text-zinc-400">
+                        {formatEurBaseline(item.product.price_cents * item.quantity)} EUR
+                      </span>
+                    )}
                   </span>
                 )}
               </div>
@@ -130,6 +156,79 @@ export default function CheckoutClient({
           fallbackName={email}
           onCountrySaved={handleCountrySaved}
         />
+
+        {/* CTT service picker — Portugal only */}
+        {isPortugal && !shipping.isFree && !fetchingShipping && (
+          <div className="space-y-3">
+            <h3 className="text-sm font-black text-zinc-700">Shipping Method</h3>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {/* Standard */}
+              <button
+                type="button"
+                onClick={() => handleServiceChange("normal")}
+                className="rounded-2xl bg-white p-4 text-left shadow-sm ring-2 transition"
+                style={{
+                  ringColor: selectedService === "normal" ? "#FF3B3B" : undefined,
+                  outline: selectedService === "normal"
+                    ? "2px solid #FF3B3B"
+                    : "2px solid #e4e4e7",
+                }}
+              >
+                <div className="flex items-start gap-3">
+                  <span className="text-xl">📦</span>
+                  <div className="flex-1">
+                    <p className="font-black text-zinc-900 text-sm">
+                      Standard (CTT Normal)
+                    </p>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      3–5 business days
+                    </p>
+                    <p className="mt-2 text-base font-black text-zinc-800">
+                      {shipping.cttOptions?.normalCents != null
+                        ? format(shipping.cttOptions.normalCents)
+                        : "—"}
+                    </p>
+                  </div>
+                  {selectedService === "normal" && (
+                    <span className="mt-0.5 h-4 w-4 rounded-full bg-[#FF3B3B] flex-shrink-0" />
+                  )}
+                </div>
+              </button>
+
+              {/* Tracked */}
+              <button
+                type="button"
+                onClick={() => handleServiceChange("expresso")}
+                className="rounded-2xl bg-white p-4 text-left shadow-sm ring-2 transition"
+                style={{
+                  outline: selectedService === "expresso"
+                    ? "2px solid #FF3B3B"
+                    : "2px solid #e4e4e7",
+                }}
+              >
+                <div className="flex items-start gap-3">
+                  <span className="text-xl">🚚</span>
+                  <div className="flex-1">
+                    <p className="font-black text-zinc-900 text-sm">
+                      Tracked (CTT Expresso)
+                    </p>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      1–2 business days
+                    </p>
+                    <p className="mt-2 text-base font-black text-zinc-800">
+                      {shipping.cttOptions?.expressoCents != null
+                        ? format(shipping.cttOptions.expressoCents)
+                        : "—"}
+                    </p>
+                  </div>
+                  {selectedService === "expresso" && (
+                    <span className="mt-0.5 h-4 w-4 rounded-full bg-[#FF3B3B] flex-shrink-0" />
+                  )}
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Right — totals + pay button */}
@@ -140,15 +239,19 @@ export default function CheckoutClient({
           <div className="space-y-2 border-b-2 border-zinc-100 pb-4 text-sm">
             <div className="flex justify-between">
               <span className="text-zinc-600">Subtotal</span>
-              <span className="font-semibold">{formatPrice(subtotalCents)}</span>
+              <span className="font-semibold">{format(subtotalCents)}</span>
             </div>
 
-            {/* Shipping row — reactive */}
+            {/* Shipping row */}
             <div className="flex justify-between">
               <span className="text-zinc-600">
-                {shipping.zoneName
-                  ? `Shipping to ${shipping.zoneName}`
-                  : "Shipping"}
+                {isPortugal
+                  ? selectedService === "expresso"
+                    ? "Shipping — Tracked"
+                    : "Shipping — Standard"
+                  : shipping.zoneName
+                    ? `Shipping to ${shipping.zoneName}`
+                    : "Shipping"}
                 {fetchingShipping && (
                   <span className="ml-1 text-zinc-400">…</span>
                 )}
@@ -163,7 +266,7 @@ export default function CheckoutClient({
                     Add address to calculate
                   </span>
                 ) : (
-                  formatEur(shipping.shippingCents)
+                  format(displayedShippingCents)
                 )}
               </span>
             </div>
@@ -174,7 +277,7 @@ export default function CheckoutClient({
               shipping.freeThresholdCents > 0 &&
               shipping.amountAwayFromFreeCents > 0 && (
                 <p className="text-xs text-pink-600 font-semibold pt-1">
-                  You&apos;re {formatEur(shipping.amountAwayFromFreeCents)} away
+                  You&apos;re {format(shipping.amountAwayFromFreeCents)} away
                   from free shipping
                 </p>
               )}
@@ -182,12 +285,19 @@ export default function CheckoutClient({
 
           <div className="mt-4 mb-6 flex items-center justify-between">
             <span className="text-base font-black text-zinc-900">Total</span>
-            <span className="text-2xl font-black text-red-600">
-              {formatPrice(totalCents)}
-            </span>
+            <div className="text-right">
+              <span className="block text-2xl font-black text-red-600">
+                {format(totalCents)}
+              </span>
+              {!isEur && (
+                <span className="block text-xs text-zinc-400">
+                  {formatEurBaseline(totalCents)} EUR
+                </span>
+              )}
+            </div>
           </div>
 
-          <PayPalButton />
+          <PayPalButton shippingService={selectedService} />
 
           <p className="mt-3 text-center text-xs text-zinc-400">
             You will be redirected to PayPal to complete payment securely.

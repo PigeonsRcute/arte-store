@@ -1,20 +1,25 @@
 import { createClient } from "@/lib/supabase/server";
 import ShippingZonesManager from "@/components/admin/shipping/ShippingZonesManager";
-import type { ShippingZone, ShippingSettings } from "@/lib/types";
+import CttRatesManager from "@/components/admin/shipping/CttRatesManager";
+import ShippingAdminTabs from "@/components/admin/shipping/ShippingAdminTabs";
+import type { CttRate, ShippingSettings, ShippingZone } from "@/lib/types";
 
 export const metadata = { title: "Shipping — Admin" };
 
 export default async function AdminShippingPage() {
   const supabase = await createClient();
 
-  const [zonesResult, settingsResult] = await Promise.all([
+  const [zonesResult, settingsResult, cttRatesResult] = await Promise.all([
     supabase.from("shipping_zones").select("*"),
-    supabase
-      .from("shipping_settings")
-      .select("*")
-      .eq("id", "default")
-      .single(),
+    supabase.from("shipping_settings").select("*").eq("id", "default").single(),
+    supabase.from("ctt_rates").select("*").order("service").order("max_weight_grams"),
   ]);
+
+  const settings: ShippingSettings = settingsResult.data ?? {
+    id: "default",
+    global_free_shipping_threshold_cents: 0,
+    default_shipping_service: "normal",
+  };
 
   return (
     <section className="space-y-6 rounded-2xl bg-white/90 p-6 shadow-lg ring-2 ring-sky-300">
@@ -23,18 +28,23 @@ export default async function AdminShippingPage() {
           Shipping
         </h1>
         <p className="text-sm text-zinc-500">
-          Configure shipping zones, rates, and the global free shipping
-          threshold. Changes take effect immediately.
+          Configure shipping zones, CTT Portugal rates, and free shipping settings.
+          Changes take effect immediately.
         </p>
       </div>
 
-      <ShippingZonesManager
-        initialZones={(zonesResult.data ?? []) as ShippingZone[]}
-        initialSettings={
-          (settingsResult.data ?? {
-            id: "default",
-            global_free_shipping_threshold_cents: 0,
-          }) as ShippingSettings
+      <ShippingAdminTabs
+        zonesPanel={
+          <ShippingZonesManager
+            initialZones={(zonesResult.data ?? []) as ShippingZone[]}
+            initialSettings={settings}
+          />
+        }
+        cttPanel={
+          <CttRatesManager
+            initialRates={(cttRatesResult.data ?? []) as CttRate[]}
+            initialSettings={settings}
+          />
         }
       />
     </section>
