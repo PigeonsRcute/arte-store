@@ -45,16 +45,25 @@ export async function POST(request: Request) {
   const { data: inviteData, error: inviteError } =
     await adminClient.auth.admin.inviteUserByEmail(email, inviteOptions);
 
+  console.log("[invite] email:", email, "role:", role);
+  console.log("[invite] inviteData:", JSON.stringify(inviteData, null, 2));
+  console.log("[invite] inviteError:", JSON.stringify(inviteError, null, 2));
+
   if (inviteError) {
+    console.error("[invite] failed for", email, "—", inviteError.message, inviteError);
     return NextResponse.json({ error: inviteError.message }, { status: 400 });
   }
 
   // The on_auth_user_created trigger fires immediately and sets role = 'customer'.
   // Override with the chosen role and name so the pending invite shows correctly.
-  await adminClient
+  const { error: profileError } = await adminClient
     .from("profiles")
     .update({ role, full_name })
     .eq("id", inviteData.user.id);
+
+  if (profileError) {
+    console.error("[invite] profile update failed for", inviteData.user.id, "—", profileError);
+  }
 
   return NextResponse.json({ ok: true });
 }
